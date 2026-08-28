@@ -54,14 +54,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
-    - name: Create ZIP
-      shell: bash
-      run: |
-        cd "${{ github.workspace }}/custom_components/50five"
-        zip ha-50five.zip -r ./
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ha-50five
-        path: ${{ github.workspace }}/custom_components/50five/ha-50five.zip
+        path: ${{ github.workspace }}/custom_components/50five
         retention-days: 30
