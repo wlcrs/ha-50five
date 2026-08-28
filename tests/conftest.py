@@ -138,6 +138,8 @@ def mock_api_client(
         client.soft_reset = AsyncMock(return_value=True)
         client.hard_reset = AsyncMock(return_value=True)
         client.reset_parameters_cache = AsyncMock(return_value=True)
+        client.get_net_balanced_charging_status = AsyncMock(return_value=False)
+        client.set_net_balanced_charging = AsyncMock(return_value=True)
 
         yield client
 

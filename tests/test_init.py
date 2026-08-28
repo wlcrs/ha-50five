@@ -21,6 +21,7 @@ CONF_DEVICE_ID = const.CONF_DEVICE_ID
 CONF_TOKEN_EXPIRES_AT = const.CONF_TOKEN_EXPIRES_AT
 DOMAIN = const.DOMAIN
 FiftyFiveCoordinator = coordinator_mod.FiftyFiveCoordinator
+FiftyFiveData = coordinator_mod.FiftyFiveData
 async_setup = init_mod.async_setup
 _resolve_fiftyfive_target = init_mod._resolve_fiftyfive_target
 
@@ -51,7 +52,8 @@ async def test_setup_and_unload_entry(
     await hass.async_block_till_done()
 
     assert mock_config_entry.state is ConfigEntryState.LOADED
-    assert isinstance(mock_config_entry.runtime_data, FiftyFiveCoordinator)
+    assert isinstance(mock_config_entry.runtime_data, FiftyFiveData)
+    assert isinstance(mock_config_entry.runtime_data.coordinator, FiftyFiveCoordinator)
 
     # Test unload
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)

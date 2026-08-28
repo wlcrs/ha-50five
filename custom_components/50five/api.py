@@ -321,6 +321,22 @@ mutation resetChargeStationParametersCache($chargeStationId: ID!) {
 }
 """)
 
+GET_NET_BALANCED_CHARGING_STATUS_QUERY = gql("""
+query GetNetBalancedChargingStatus($chargepointId: ID!) {
+  getNetBalancedChargingStatus(chargepointId: $chargepointId)
+}
+""")
+
+NET_BALANCED_CHARGING_MUTATION = gql("""
+mutation NetBalancedCharging($chargepointId: ID!, $enabled: Boolean!) {
+  netBalancedCharging(chargepointId: $chargepointId, enabled: $enabled) {
+    startTime
+    stopTime
+    weekday
+  }
+}
+""")
+
 
 class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
     """AIOHTTPTransport that uses Home Assistant's shared ClientSession safely without closing it."""
@@ -852,3 +868,21 @@ class FiftyFiveApiClient:
             {"chargeStationId": str(charge_station_id)},
         )
         return bool(res.get("resetChargeStationParametersCache", True))
+
+    async def get_net_balanced_charging_status(self, chargepoint_id: str) -> bool:
+        """Get net balanced charging status for a charge station."""
+        data = await self._execute_query(
+            GET_NET_BALANCED_CHARGING_STATUS_QUERY,
+            {"chargepointId": str(chargepoint_id)},
+        )
+        return bool(data.get("getNetBalancedChargingStatus", False))
+
+    async def set_net_balanced_charging(
+        self, chargepoint_id: str, enabled: bool
+    ) -> bool:
+        """Enable or disable net balanced charging on a charge station."""
+        data = await self._execute_query(
+            NET_BALANCED_CHARGING_MUTATION,
+            {"chargepointId": str(chargepoint_id), "enabled": enabled},
+        )
+        return bool(data.get("netBalancedCharging") is not None)

@@ -352,8 +352,11 @@ class FiftyFiveOptionsFlowHandler(OptionsFlow):
                 )
 
         cards: list[ChargeCard] = []
-        coordinator: FiftyFiveCoordinator | None = getattr(
-            self.config_entry, "runtime_data", None
+        data_obj = getattr(self.config_entry, "runtime_data", None)
+        coordinator: FiftyFiveCoordinator | None = (
+            data_obj.coordinator
+            if data_obj and hasattr(data_obj, "coordinator")
+            else data_obj
         )
         if coordinator and coordinator.client:
             try:

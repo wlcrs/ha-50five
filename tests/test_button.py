@@ -62,7 +62,9 @@ async def test_button_press_actions(
 
     # 1. Refresh Status
     with patch.object(
-        mock_config_entry.runtime_data, "async_request_refresh", new_callable=AsyncMock
+        mock_config_entry.runtime_data.coordinator,
+        "async_request_refresh",
+        new_callable=AsyncMock,
     ) as mock_refresh:
         await hass.services.async_call(
             BUTTON_DOMAIN,

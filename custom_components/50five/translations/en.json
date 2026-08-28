@@ -150,6 +150,9 @@
       },
       "channel_charging": {
         "name": "Ch {channel} charge with card {card_id}"
+      },
+      "net_balanced_charging": {
+        "name": "Net balanced charging"
       }
     },
     "button": {

@@ -13,6 +13,7 @@ CONF_TOKEN_EXPIRES_AT = "token_expires_at"
 # API Endpoint
 DEFAULT_BASE_URL = "https://lms.servicelayer.platform-01.plugz.dev/graphql"
 DEFAULT_SCAN_INTERVAL = 60  # seconds
+CONFIGURATION_SCAN_INTERVAL = 900  # 15 minutes (seconds)
 ACTION_SETTLE_DELAY_SEC = (
     5  # Seconds to wait after action before refreshing coordinator data
 )

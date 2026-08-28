@@ -388,6 +388,14 @@ async def test_api_mutation_methods() -> None:
         mock_query.return_value = {"resetChargeStationParametersCache": True}
         assert await client.reset_parameters_cache(MOCK_STATION_ID) is True
 
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = {"getNetBalancedChargingStatus": True}
+        assert await client.get_net_balanced_charging_status(MOCK_STATION_ID) is True
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = {"netBalancedCharging": [{"startTime": "00:00", "stopTime": "23:59", "weekday": "MONDAY"}]}
+        assert await client.set_net_balanced_charging(MOCK_STATION_ID, True) is True
+
 
 async def test_homeassistant_aiohttp_transport() -> None:
     """Test HomeAssistantAIOHTTPTransport lifecycle with shared session."""

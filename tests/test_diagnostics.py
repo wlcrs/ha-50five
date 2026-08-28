@@ -55,6 +55,7 @@ async def test_diagnostics(
     assert st1["hcc_enabled"] is True
     assert st1["hcc_tariff"] == 0.363
     assert st1["raw_hcc_tariff"] == 0.30
+    assert st1["net_balanced_charging"] is False
     assert st1["has_last_transaction"] is True
     assert st1["last_transaction_energy"] == 28.5
 

@@ -36,9 +36,16 @@ async def async_get_config_entry_diagnostics(
         "config_entry": async_redact_data(config_entry.as_dict(), TO_REDACT),
     }
 
-    coordinator: FiftyFiveCoordinator | None = getattr(
-        config_entry, "runtime_data", None
-    )
+    data_obj = getattr(config_entry, "runtime_data", None)
+    coordinator: FiftyFiveCoordinator | None = None
+    config_coordinator = None
+    if data_obj is not None:
+        if hasattr(data_obj, "coordinator"):
+            coordinator = data_obj.coordinator
+            config_coordinator = getattr(data_obj, "config_coordinator", None)
+        elif isinstance(data_obj, FiftyFiveCoordinator):
+            coordinator = data_obj
+
     if coordinator is not None and coordinator.data:
         stations_data = []
         for st_data in coordinator.data.values():
@@ -57,6 +64,11 @@ async def async_get_config_entry_diagnostics(
                     "hcc_enabled": station.hcc.hcc_enabled,
                     "hcc_tariff": station.hcc.hcc_tariff,
                     "raw_hcc_tariff": station.hcc.raw_hcc_tariff,
+                    "net_balanced_charging": (
+                        config_coordinator.data.get(station.id)
+                        if config_coordinator and config_coordinator.data
+                        else None
+                    ),
                     "has_last_transaction": tx is not None,
                     "last_transaction_energy": tx.total_energy if tx else None,
                 }

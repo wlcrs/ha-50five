@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
@@ -12,13 +13,72 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FiftyFiveApiClient
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CONFIGURATION_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .exceptions import FiftyFiveAuthError, FiftyFiveError
 from .models import ActiveTransaction, ChargeStation, StationData
 
 _LOGGER = logging.getLogger(__name__)
 
-type FiftyFiveConfigEntry = ConfigEntry[FiftyFiveCoordinator]
+@dataclass
+class FiftyFiveData:
+    """Runtime data container holding all coordinators for a 50five config entry."""
+
+    coordinator: FiftyFiveCoordinator
+    config_coordinator: FiftyFiveConfigurationUpdateCoordinator
+
+
+type FiftyFiveConfigEntry = ConfigEntry[FiftyFiveData]
+
+
+class FiftyFiveConfigurationUpdateCoordinator(
+    DataUpdateCoordinator[dict[str, bool]]
+):
+    """Coordinator dedicated to polling configuration/settings (e.g. Net Balanced Charging) every 15 minutes."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: FiftyFiveApiClient,
+        main_coordinator: FiftyFiveCoordinator,
+    ) -> None:
+        """Initialize configuration update coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_configuration",
+            update_interval=timedelta(seconds=CONFIGURATION_SCAN_INTERVAL),
+        )
+        self.client = client
+        self.main_coordinator = main_coordinator
+
+    async def _async_update_data(self) -> dict[str, bool]:
+        """Fetch configuration settings for all charge stations."""
+        data: dict[str, bool] = {}
+        for station in self.main_coordinator.charge_stations:
+            station_id = station.id
+            if not station_id:
+                continue
+            try:
+                data[station_id] = await self.client.get_net_balanced_charging_status(
+                    station_id
+                )
+            except FiftyFiveAuthError as err:
+                raise ConfigEntryAuthFailed(
+                    f"Authentication failed for 50five user {self.client.username}: {err}"
+                ) from err
+            except FiftyFiveError as err:
+                _LOGGER.debug(
+                    "Could not fetch configuration for %s: %s",
+                    station_id,
+                    err,
+                )
+            except Exception as err:
+                _LOGGER.debug(
+                    "Unexpected error fetching configuration for %s: %s",
+                    station_id,
+                    err,
+                )
+        return data
 
 
 class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):

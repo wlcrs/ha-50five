@@ -25,7 +25,12 @@ from .const import (
     CONF_TOKEN_EXPIRES_AT,
     DOMAIN,
 )
-from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .coordinator import (
+    FiftyFiveConfigEntry,
+    FiftyFiveConfigurationUpdateCoordinator,
+    FiftyFiveCoordinator,
+    FiftyFiveData,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,10 +51,10 @@ def _resolve_fiftyfive_target(
     config_entry: FiftyFiveConfigEntry | None = hass.config_entries.async_get_entry(
         entity_entry.config_entry_id
     )
-    if not config_entry or not hasattr(config_entry, "runtime_data"):
+    if not config_entry or not hasattr(config_entry, "runtime_data") or not config_entry.runtime_data:
         return None
 
-    coordinator: FiftyFiveCoordinator = config_entry.runtime_data
+    coordinator: FiftyFiveCoordinator = config_entry.runtime_data.coordinator
 
     # Spot ID from HA Device Registry (with fallback to unique_id prefix)
     spot_id: str | None = None
@@ -168,10 +173,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) ->
     )
 
     coordinator = FiftyFiveCoordinator(hass, client)
+    config_coordinator = FiftyFiveConfigurationUpdateCoordinator(
+        hass, client, coordinator
+    )
+
     await coordinator.async_config_entry_first_refresh()
+    await config_coordinator.async_config_entry_first_refresh()
 
     # Modern HA 2024.4+ runtime data storage
-    entry.runtime_data = coordinator
+    entry.runtime_data = FiftyFiveData(
+        coordinator=coordinator,
+        config_coordinator=config_coordinator,
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

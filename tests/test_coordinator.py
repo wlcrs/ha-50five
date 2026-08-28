@@ -13,6 +13,9 @@ exceptions = importlib.import_module("custom_components.50five.exceptions")
 models = importlib.import_module("custom_components.50five.models")
 
 FiftyFiveCoordinator = coordinator_mod.FiftyFiveCoordinator
+FiftyFiveConfigurationUpdateCoordinator = (
+    coordinator_mod.FiftyFiveConfigurationUpdateCoordinator
+)
 FiftyFiveAuthError = exceptions.FiftyFiveAuthError
 FiftyFiveError = exceptions.FiftyFiveError
 ActiveTransaction = models.ActiveTransaction
@@ -46,6 +49,25 @@ async def test_coordinator_update_success(
     assert multi_data.num_channels == 2
     assert multi_data.channels[1].global_status.value == "charging"
     assert multi_data.channels[2].global_status.value == "available"
+
+
+async def test_configuration_coordinator(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+    mock_charge_stations: list[ChargeStation],
+) -> None:
+    """Test configuration update coordinator updates."""
+    mock_api_client.get_net_balanced_charging_status.return_value = True
+    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator.charge_stations = mock_charge_stations
+
+    config_coordinator = FiftyFiveConfigurationUpdateCoordinator(
+        hass, mock_api_client, coordinator
+    )
+    cfg_data = await config_coordinator._async_update_data()
+    assert len(cfg_data) == 2
+    assert cfg_data[MOCK_STATION_ID] is True
+    assert cfg_data[MOCK_MULTI_STATION_ID] is True
 
 
 async def test_coordinator_no_stations(

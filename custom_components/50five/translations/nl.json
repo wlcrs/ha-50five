@@ -149,7 +149,10 @@
         "name": "Laden met laadpas {card_id}"
       },
       "channel_charging": {
-        "name": "Ch {channel} laden met laadpas {card_id}"
+        "name": "Kanaal {channel} laden met laadpas {card_id}"
+      },
+      "net_balanced_charging": {
+        "name": "Netbewust laden"
       }
     },
     "button": {
@@ -190,4 +193,3 @@
     }
   }
 }
-

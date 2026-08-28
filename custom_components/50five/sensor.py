@@ -228,7 +228,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up 50five sensors."""
-    coordinator = entry.runtime_data
+    coordinator = entry.runtime_data.coordinator
 
     entities: list[SensorEntity] = []
 
