@@ -140,12 +140,7 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
 
     def _get_channel_id(self) -> str:
         """Resolve the GraphQL channel ID."""
-        station_data = self.coordinator.data.get(self._spot_id)
-        if station_data:
-            ch = station_data.channels.get(self._channel_no)
-            if ch and ch.id:
-                return ch.id
-        return str(self._channel_no)
+        return self.coordinator.get_channel_id(self._spot_id, self._channel_no)
 
     async def _async_schedule_refresh(self) -> None:
         """Schedule non-blocking deferred refresh to settle hardware state."""

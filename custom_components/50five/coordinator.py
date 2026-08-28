@@ -43,6 +43,15 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         self.spot_channels: dict[str, int] = {}
         self.entities: dict[str, Any] = {}
 
+    def get_channel_id(self, spot_id: str, channel_no: int = 1) -> str:
+        """Resolve the GraphQL channel ID for a station and channel number."""
+        station_data = self.data.get(spot_id) if self.data else None
+        if station_data:
+            ch_id = station_data.get_channel_id(channel_no)
+            if ch_id:
+                return ch_id
+        return str(channel_no)
+
     async def _async_update_data(self) -> dict[str, StationData]:
         """Fetch charge stations and active transaction data from GraphQL API."""
         try:

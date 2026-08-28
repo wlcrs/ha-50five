@@ -359,9 +359,11 @@ class ChargeStationChannel:
     def from_dict(cls, data: dict[str, Any]) -> ChargeStationChannel:
         """Parse dictionary to ChargeStationChannel."""
         soc_val = data.get("soc")
+        raw_ch_no = data.get("channelNo")
+        channel_no = int(raw_ch_no) if raw_ch_no is not None else 1
         return cls(
-            id=str(data.get("id", "")),
-            channel_no=int(data.get("channelNo", 1)),
+            id=str(data.get("id") or ""),
+            channel_no=channel_no,
             evse_id=data.get("evseId"),
             global_status=GlobalStatus.from_str(data.get("globalStatus")),
             cable_lock=data.get("cableLock"),
@@ -447,6 +449,18 @@ class StationData:
     def last_transaction(self) -> CompletedTransaction | None:
         """Return the station's last completed transaction."""
         return self.station.last_transaction
+
+    def get_channel_id(self, channel_no: int = 1) -> str | None:
+        """Resolve the GraphQL channel ID for a given channel number."""
+        ch = self.channels.get(channel_no)
+        if ch and ch.id:
+            return ch.id
+        for ch_item in self.station.channels:
+            if ch_item.channel_no == channel_no and ch_item.id:
+                return ch_item.id
+        if self.station.channels and self.station.channels[0].id:
+            return self.station.channels[0].id
+        return None
 
 
 @dataclass(slots=True, frozen=True)

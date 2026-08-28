@@ -226,3 +226,73 @@ async def test_services_target_resolution_edge_cases(
         config_entry=mock_config_entry,
     )
     assert _resolve_fiftyfive_target(hass, entity_empty_id.entity_id) is None
+
+
+async def test_services_with_device_id_target(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test 50five.start_charging and 50five.stop_charging targeting a device."""
+    from homeassistant.helpers import device_registry as dr
+
+    await async_setup(hass, {})
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    entity = entity_registry.async_get("sensor.home_charger_single_status")
+    assert entity is not None
+    assert entity.device_id is not None
+    device_id = entity.device_id
+
+    # Call start_charging with device_id and default card fallback
+    mock_api_client.start_charging.reset_mock()
+    await hass.services.async_call(
+        DOMAIN,
+        "start_charging",
+        {"device_id": [device_id]},
+        blocking=True,
+    )
+    mock_api_client.start_charging.assert_called_once_with(
+        MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
+    )
+
+    # Call stop_charging with device_id
+    mock_api_client.stop_charging.reset_mock()
+    await hass.services.async_call(
+        DOMAIN,
+        "stop_charging",
+        {"device_id": [device_id]},
+        blocking=True,
+    )
+    mock_api_client.stop_charging.assert_called_once_with(MOCK_STATION_ID, "ch_999_1")
+
+
+async def test_services_with_sensor_entity_target(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test 50five.start_charging targeting a sensor entity resolves channel ID properly."""
+    await async_setup(hass, {})
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Target the station status sensor
+    sensor_id = "sensor.home_charger_single_status"
+    assert hass.states.get(sensor_id) is not None
+
+    mock_api_client.start_charging.reset_mock()
+    await hass.services.async_call(
+        DOMAIN,
+        "start_charging",
+        {"entity_id": sensor_id},
+        blocking=True,
+    )
+    mock_api_client.start_charging.assert_called_once_with(
+        MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
+    )
+

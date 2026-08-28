@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import service
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -17,6 +19,7 @@ from homeassistant.helpers.typing import ConfigType
 from .api import FiftyFiveApiClient
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_CARD_ID,
     CONF_CUSTOMER_ID,
     CONF_DEVICE_ID,
     CONF_TOKEN_EXPIRES_AT,
@@ -36,33 +39,34 @@ def _resolve_fiftyfive_target(
     entity_id: str,
 ) -> tuple[FiftyFiveCoordinator, str, str] | None:
     """Resolve entity_id to (coordinator, spot_id, channel_id)."""
-    entity_registry = er.async_get(hass)
-    entity_entry = entity_registry.async_get(entity_id)
-    if not entity_entry or not entity_entry.config_entry_id:
-        _LOGGER.error("Entity %s not found in registry", entity_id)
+    entity_entry = er.async_get(hass).async_get(entity_id)
+    if not entity_entry or not entity_entry.config_entry_id or not entity_entry.unique_id:
         return None
 
     config_entry: FiftyFiveConfigEntry | None = hass.config_entries.async_get_entry(
         entity_entry.config_entry_id
     )
     if not config_entry or not hasattr(config_entry, "runtime_data"):
-        _LOGGER.error("Coordinator not found for entity %s", entity_id)
         return None
 
     coordinator: FiftyFiveCoordinator = config_entry.runtime_data
-    unique_id = entity_entry.unique_id or ""
-    switch_entity = coordinator.entities.get(unique_id)
 
-    spot_id = getattr(switch_entity, "_spot_id", None) or unique_id.split("_")[0]
+    # Spot ID from HA Device Registry (with fallback to unique_id prefix)
+    spot_id: str | None = None
+    if entity_entry.device_id:
+        dev = dr.async_get(hass).async_get(entity_entry.device_id)
+        if dev:
+            spot_id = next((ident for dom, ident in dev.identifiers if dom == DOMAIN), None)
+
     if not spot_id:
-        _LOGGER.error("Could not resolve spot_id from %s", entity_id)
+        spot_id = entity_entry.unique_id.split("_", 1)[0]
+    if not spot_id:
         return None
 
-    channel_id = (
-        switch_entity._get_channel_id()
-        if switch_entity and hasattr(switch_entity, "_get_channel_id")
-        else "1"
-    )
+    # Channel ID (matches _ch<N>_ in unique_id if multi-channel, else channel 1)
+    m = re.search(r"_ch(\d+)_", entity_entry.unique_id)
+    ch_num = int(m.group(1)) if m else 1
+    channel_id = coordinator.get_channel_id(spot_id, ch_num)
 
     return (coordinator, spot_id, channel_id)
 
@@ -70,17 +74,20 @@ def _resolve_fiftyfive_target(
 async def _async_extract_targets(
     hass: HomeAssistant, call: ServiceCall
 ) -> list[tuple[FiftyFiveCoordinator, str, str]]:
-    """Extract list of valid target tuples for a service call."""
+    """Extract list of unique valid target tuples for a service call."""
     try:
         entity_ids = await service.async_extract_entity_ids(hass, call)
     except TypeError:
         entity_ids = await service.async_extract_entity_ids(call)
-    targets = []
+
+    targets: dict[tuple[int, str, str], tuple[FiftyFiveCoordinator, str, str]] = {}
     for entity_id in entity_ids:
         target = _resolve_fiftyfive_target(hass, entity_id)
         if target:
-            targets.append(target)
-    return targets
+            coord, spot_id, channel_id = target
+            targets[(id(coord), spot_id, channel_id)] = target
+
+    return list(targets.values())
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -89,18 +96,32 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def async_handle_start_charging(call: ServiceCall) -> None:
         """Start charging on targeted channels."""
         card_id = call.data.get("card_id")
-        for coordinator, spot_id, channel_id in await _async_extract_targets(
-            hass, call
-        ):
-            await coordinator.client.start_charging(spot_id, channel_id, card_id)
+        targets = await _async_extract_targets(hass, call)
+        coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
+
+        for coordinator, spot_id, channel_id in targets:
+            config_entry = getattr(coordinator, "config_entry", None)
+            effective_card = (
+                card_id
+                or (config_entry.options.get(CONF_CARD_ID) if config_entry else None)
+                or (config_entry.data.get(CONF_CARD_ID) if config_entry else None)
+            )
+            await coordinator.client.start_charging(spot_id, channel_id, effective_card)
+            coordinators_to_refresh.add(coordinator)
+
+        for coordinator in coordinators_to_refresh:
             await coordinator.async_request_refresh()
 
     async def async_handle_stop_charging(call: ServiceCall) -> None:
         """Stop charging on targeted channels."""
-        for coordinator, spot_id, channel_id in await _async_extract_targets(
-            hass, call
-        ):
+        targets = await _async_extract_targets(hass, call)
+        coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
+
+        for coordinator, spot_id, channel_id in targets:
             await coordinator.client.stop_charging(spot_id, channel_id)
+            coordinators_to_refresh.add(coordinator)
+
+        for coordinator in coordinators_to_refresh:
             await coordinator.async_request_refresh()
 
     hass.services.async_register(DOMAIN, "start_charging", async_handle_start_charging)
