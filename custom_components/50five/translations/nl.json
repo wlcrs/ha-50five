@@ -1,0 +1,193 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met 50five",
+        "description": "Voer uw accountgegevens in.",
+        "data": {
+          "username": "E-mailadres",
+          "password": "Wachtwoord"
+        }
+      },
+      "card": {
+        "title": "Laadpas selecteren",
+        "description": "Selecteer de standaard laadpas voor laadsessies vanuit Home Assistant. U kunt deze stap overslaan als u nu geen laadpas wilt instellen.",
+        "data": {
+          "card_id": "Laadpas",
+          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas in mijn bezit is en dat ik de eigenaar ben."
+        }
+      },
+      "reconfigure": {
+        "title": "50five opnieuw configureren",
+        "description": "Werk uw inloggegevens bij. Laat het wachtwoord leeg om het huidige wachtwoord te behouden.",
+        "data": {
+          "username": "E-mailadres",
+          "password": "Wachtwoord (leeg laten om te behouden)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Opnieuw verifiëren bij 50five",
+        "description": "Voer uw wachtwoord in voor account {username}.",
+        "data": {
+          "password": "Wachtwoord"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldig e-mailadres of wachtwoord",
+      "cannot_connect": "Kan geen verbinding maken met het GraphQL API-eindpunt",
+      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas om door te gaan",
+      "unknown": "Er is een onverwachte fout opgetreden"
+    },
+    "abort": {
+      "already_configured": "Dit account is al geconfigureerd",
+      "reconfigure_successful": "Configuratie succesvol bijgewerkt",
+      "reauth_successful": "Opnieuw verifiëren is geslaagd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "50five opties",
+        "description": "Selecteer de standaard laadpas voor het starten van laadsessies.",
+        "data": {
+          "card_id": "Laadpas",
+          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas in mijn bezit is en dat ik de eigenaar ben."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas om door te gaan",
+      "unknown": "Er is een onverwachte fout opgetreden"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "available": "Beschikbaar",
+          "charging": "Laden",
+          "occupied": "Bezet",
+          "faulted": "Fout",
+          "unavailable": "Niet beschikbaar",
+          "suspended_evse": "Onderbroken (EVSE)",
+          "suspended_ev": "Onderbroken (EV)",
+          "preparing": "Voorbereiden",
+          "finishing": "Afronden",
+          "reserved": "Gereserveerd",
+          "unknown": "Onbekend"
+        }
+      },
+      "current_power": {
+        "name": "Huidig vermogen"
+      },
+      "session_energy": {
+        "name": "Sessie-energie"
+      },
+      "session_time": {
+        "name": "Sessieduur"
+      },
+      "session_cost": {
+        "name": "Sessiekosten"
+      },
+      "hcc_tariff": {
+        "name": "HCC-tarief"
+      },
+      "hcc_enabled": {
+        "name": "HCC-status"
+      },
+      "last_transaction_energy": {
+        "name": "Energie laatste sessie"
+      },
+      "last_transaction_duration": {
+        "name": "Duur laatste sessie"
+      },
+      "last_transaction_start_time": {
+        "name": "Starttijd laatste sessie"
+      },
+      "last_transaction_end_time": {
+        "name": "Eindtijd laatste sessie"
+      },
+      "last_transaction_cost": {
+        "name": "Kosten laatste sessie"
+      },
+      "last_transaction_card": {
+        "name": "Laadpas laatste sessie"
+      },
+      "channel_status": {
+        "name": "Ch {channel} status",
+        "state": {
+          "available": "Beschikbaar",
+          "charging": "Laden",
+          "occupied": "Bezet",
+          "faulted": "Fout",
+          "unavailable": "Niet beschikbaar",
+          "suspended_evse": "Onderbroken (EVSE)",
+          "suspended_ev": "Onderbroken (EV)",
+          "preparing": "Voorbereiden",
+          "finishing": "Afronden",
+          "reserved": "Gereserveerd",
+          "unknown": "Onbekend"
+        }
+      },
+      "channel_current_power": {
+        "name": "Ch {channel} huidig vermogen"
+      },
+      "channel_session_energy": {
+        "name": "Ch {channel} sessie-energie"
+      },
+      "channel_session_time": {
+        "name": "Ch {channel} sessieduur"
+      },
+      "channel_session_cost": {
+        "name": "Ch {channel} sessiekosten"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Laden met laadpas {card_id}"
+      },
+      "channel_charging": {
+        "name": "Ch {channel} laden met laadpas {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Status vernieuwen"
+      },
+      "soft_reset": {
+        "name": "Zachte reset"
+      },
+      "hard_reset": {
+        "name": "Harde reset"
+      },
+      "reset_cache": {
+        "name": "Cache resetten"
+      },
+      "unlock_connector": {
+        "name": "Connector ontgrendelen"
+      },
+      "channel_unlock_connector": {
+        "name": "Ch {channel} connector ontgrendelen"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Starten met laden",
+      "description": "Start een laadsessie met een optionele laadpas-ID.",
+      "fields": {
+        "card_id": {
+          "name": "Laadpas-ID",
+          "description": "Optionele laadpas-ID voor deze laadsessie. Indien niet opgegeven, wordt de geconfigureerde standaardpas gebruikt."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stoppen met laden",
+      "description": "Stop de huidige laadsessie."
+    }
+  }
+}
+

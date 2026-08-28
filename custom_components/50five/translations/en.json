@@ -1,0 +1,192 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to 50five",
+        "description": "Enter your account credentials.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        }
+      },
+      "card": {
+        "title": "Select charge card",
+        "description": "Select the default charge card to use for charging sessions from this Home Assistant instance. You may skip this step if you do not want to configure a charge card at this time.",
+        "data": {
+          "card_id": "Charge card",
+          "confirm_ownership": "I hereby confirm that the selected charge card is in my possession and that I am the owner."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure 50five",
+        "description": "Update your connection credentials. Leave password blank to keep current password.",
+        "data": {
+          "username": "Email",
+          "password": "Password (leave blank to keep current)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with 50five",
+        "description": "Please enter your password for account {username}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Cannot connect to GraphQL API endpoint",
+      "must_confirm_ownership": "You must confirm ownership of the selected charge card to proceed",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This account is already configured",
+      "reconfigure_successful": "Configuration updated successfully",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "50five options",
+        "description": "Select the default charge card to use for starting charging sessions.",
+        "data": {
+          "card_id": "Charge card",
+          "confirm_ownership": "I hereby confirm that the selected charge card is in my possession and that I am the owner."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "You must confirm ownership of the selected charge card to proceed",
+      "unknown": "Unexpected error occurred"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "available": "Available",
+          "charging": "Charging",
+          "occupied": "Occupied",
+          "faulted": "Faulted",
+          "unavailable": "Unavailable",
+          "suspended_evse": "Suspended (EVSE)",
+          "suspended_ev": "Suspended (EV)",
+          "preparing": "Preparing",
+          "finishing": "Finishing",
+          "reserved": "Reserved",
+          "unknown": "Unknown"
+        }
+      },
+      "current_power": {
+        "name": "Current power"
+      },
+      "session_energy": {
+        "name": "Session energy"
+      },
+      "session_time": {
+        "name": "Session time"
+      },
+      "session_cost": {
+        "name": "Session cost"
+      },
+      "hcc_tariff": {
+        "name": "HCC tariff"
+      },
+      "hcc_enabled": {
+        "name": "HCC status"
+      },
+      "last_transaction_energy": {
+        "name": "Last session energy"
+      },
+      "last_transaction_duration": {
+        "name": "Last session duration"
+      },
+      "last_transaction_start_time": {
+        "name": "Last session start"
+      },
+      "last_transaction_end_time": {
+        "name": "Last session end"
+      },
+      "last_transaction_cost": {
+        "name": "Last session cost"
+      },
+      "last_transaction_card": {
+        "name": "Last session card"
+      },
+      "channel_status": {
+        "name": "Ch {channel} Status",
+        "state": {
+          "available": "Available",
+          "charging": "Charging",
+          "occupied": "Occupied",
+          "faulted": "Faulted",
+          "unavailable": "Unavailable",
+          "suspended_evse": "Suspended (EVSE)",
+          "suspended_ev": "Suspended (EV)",
+          "preparing": "Preparing",
+          "finishing": "Finishing",
+          "reserved": "Reserved",
+          "unknown": "Unknown"
+        }
+      },
+      "channel_current_power": {
+        "name": "Ch {channel} Current power"
+      },
+      "channel_session_energy": {
+        "name": "Ch {channel} Session energy"
+      },
+      "channel_session_time": {
+        "name": "Ch {channel} Session time"
+      },
+      "channel_session_cost": {
+        "name": "Ch {channel} Session cost"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Charge with card {card_id}"
+      },
+      "channel_charging": {
+        "name": "Ch {channel} charge with card {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Refresh status"
+      },
+      "soft_reset": {
+        "name": "Soft reset"
+      },
+      "hard_reset": {
+        "name": "Hard reset"
+      },
+      "reset_cache": {
+        "name": "Reset cache"
+      },
+      "unlock_connector": {
+        "name": "Unlock connector"
+      },
+      "channel_unlock_connector": {
+        "name": "Ch {channel} Unlock connector"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Start charging",
+      "description": "Start a charging session with an optional RFID card ID.",
+      "fields": {
+        "card_id": {
+          "name": "RFID card ID",
+          "description": "Optional RFID card ID to use for this charging session. If not provided, uses the default card configured in the integration."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stop charging",
+      "description": "Stop the current charging session."
+    }
+  }
+}

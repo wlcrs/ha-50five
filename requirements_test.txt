@@ -1,0 +1,7 @@
+pytest-homeassistant-custom-component
+pytest
+pytest-asyncio
+pytest-cov
+syrupy
+gql[aiohttp]>=3.5.0
+aiohttp>=3.8.0

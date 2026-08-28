@@ -1,0 +1,17 @@
+{
+  "domain": "50five",
+  "name": "50five",
+  "codeowners": [
+    "@wlcrs"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/wlcrs/ha-50five",
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/wlcrs/ha-50five/issues",
+  "requirements": [
+    "gql[aiohttp]>=3.5.0",
+    "aiohttp>=3.8.0"
+  ],
+  "version": "0.1.0"
+}
