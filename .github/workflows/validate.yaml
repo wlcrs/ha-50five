@@ -12,15 +12,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  # We're not published on HACS (yet)
-  # validate-hacs:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - uses: actions/checkout@v5
-  #   - name: HACS validation
-  #     uses: hacs/action@main
-  #     with:
-  #       category: integration
+  validate-hacs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: HACS validation
+      uses: hacs/action@main
+      with:
+        category: integration
   validate-hassfest:
     runs-on: ubuntu-latest
     steps:

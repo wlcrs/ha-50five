@@ -66,7 +66,7 @@ The integration registers custom services under the `50five` domain for automati
 
 ## Installation
 
-### ~~Method 1: HACS (Recommended)~~
+### Method 1: HACS (Recommended)
 1. Open **HACS** in your Home Assistant instance.
 2. Go to **Integrations** > **Custom repositories** (three dots top right).
 3. Add the repository URL and category `Integration`.
