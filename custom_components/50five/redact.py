@@ -46,8 +46,9 @@ def _normalize_key(key: str) -> str:
     return key.lower().replace("_", "")
 
 
-def mask_value(value: str) -> str:
-    """Mask a sensitive string, keeping first/last 2 chars so values stay distinguishable."""
+def mask_value(value: Any) -> str:
+    """Mask a sensitive value, keeping first/last 2 chars for differentiation."""
+    value = str(value)
     if len(value) <= 4:
         return "*" * len(value)
     return f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
@@ -61,8 +62,8 @@ def censor(data: Any) -> Any:
             key_norm = _normalize_key(str(key))
             if key_norm in REDACTED_KEYS:
                 censored[key] = "<redacted>"
-            elif key_norm in MASKED_KEYS and isinstance(value, str):
-                censored[key] = mask_value(value)
+            elif key_norm in MASKED_KEYS:
+                censored[key] = mask_value(value) if value is not None else None
             else:
                 censored[key] = censor(value)
         return censored
