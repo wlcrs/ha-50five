@@ -118,6 +118,7 @@ def mock_api_client(
         client.customer_id = "cust_12345"
         client.access_token = "mock_token"
         client.token_expires_at = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        client.base_url = "https://api.example.com/graphql"
         client.is_authenticated = True
         client.is_token_expired.return_value = False
 

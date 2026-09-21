@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -11,6 +12,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_ACCESS_TOKEN, CONF_CARD_ID, CONF_DEVICE_ID
 from .coordinator import FiftyFiveCoordinator
+from .redact import censor, mask_value
 
 TO_REDACT = {
     CONF_ACCESS_TOKEN,
@@ -19,13 +21,6 @@ TO_REDACT = {
     CONF_CARD_ID,
     CONF_DEVICE_ID,
 }
-
-
-def _anonymize_identifier(value: str) -> str:
-    """Return an identifier with only its first and last two characters."""
-    if len(value) <= 4:
-        return "**REDACTED**"
-    return f"{value[:2]}***{value[-2:]}"
 
 
 async def async_get_config_entry_diagnostics(
@@ -39,28 +34,25 @@ async def async_get_config_entry_diagnostics(
     coordinator: FiftyFiveCoordinator | None = getattr(
         config_entry, "runtime_data", None
     )
-    if coordinator is not None and coordinator.data:
-        stations_data = []
-        for st_data in coordinator.data.values():
-            station = st_data.station
-            tx = st_data.last_transaction
-            stations_data.append(
-                {
-                    "id": _anonymize_identifier(station.id),
-                    "name": station.name,
-                    "num_channels": st_data.num_channels,
-                    "manufacturer": {
-                        "vendor": station.manufacturer.vendor,
-                        "model": station.manufacturer.model,
-                    },
-                    "access_type": station.access_options.access_type.value,
-                    "hcc_enabled": station.hcc.hcc_enabled,
-                    "hcc_tariff": station.hcc.hcc_tariff,
-                    "raw_hcc_tariff": station.hcc.raw_hcc_tariff,
-                    "has_last_transaction": tx is not None,
-                    "last_transaction_energy": tx.total_energy if tx else None,
-                }
-            )
-        data["stations"] = stations_data
+    if coordinator is None:
+        return data
+
+    client = coordinator.client
+    data["client"] = {
+        "username": mask_value(client.username),
+        "device_id": mask_value(client.device_id),
+        "customer_id": mask_value(client.customer_id) if client.customer_id else None,
+        "base_url": client.base_url,
+        "token_expires_at": (
+            client.token_expires_at.isoformat() if client.token_expires_at else None
+        ),
+        "is_token_expired": client.is_token_expired(),
+    }
+
+    if coordinator.data:
+        data["stations"] = {
+            mask_value(station_id): censor(dataclasses.asdict(station_data))
+            for station_id, station_data in coordinator.data.items()
+        }
 
     return data

@@ -50,7 +50,6 @@ async def async_setup_entry(
                 is_multi_channel=num_channels > 1,
             )
             entities.append(ch_switch)
-            coordinator.entities[ch_switch.unique_id] = ch_switch
 
     async_add_entities(entities)
 

@@ -21,6 +21,7 @@ from gql.transport.aiohttp import (
     close_files,
 )
 from gql.transport.exceptions import TransportError, TransportServerError
+from graphql import print_ast
 
 from .const import DEFAULT_BASE_URL, DEFAULT_VAT_MULTIPLIER, VAT_MULTIPLIERS
 from .exceptions import (
@@ -35,6 +36,7 @@ from .models import (
     ChargeStation,
     LoginResult,
 )
+from .redact import censor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +58,15 @@ def _extract_customer_id_from_jwt(token: str) -> str | None:
     """Extract customerId from JWT token payload."""
     claims = _extract_jwt_claims(token)
     return claims.get("external_api", {}).get("customerId") or claims.get("id")
+
+
+def _query_text(document: Any) -> str:
+    """Return the raw GraphQL query/mutation text for logging."""
+    doc = getattr(document, "document", document)
+    try:
+        return print_ast(doc)
+    except Exception:
+        return str(document)
 
 
 # GraphQL Documents parsed as AST via gql DSL
@@ -523,16 +534,23 @@ class FiftyFiveApiClient:
                 transport=login_transport, fetch_schema_from_transport=False
             )
 
+            login_variables = {"email": self.username, "password": self.password}
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "GraphQL request:\n%s\nVariables: %s",
+                    _query_text(LOGIN_MUTATION),
+                    censor(login_variables),
+                )
+
             try:
                 result = await login_client.execute_async(
                     GraphQLRequest(
                         LOGIN_MUTATION,
-                        variable_values={
-                            "email": self.username,
-                            "password": self.password,
-                        },
+                        variable_values=login_variables,
                     )
                 )
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("GraphQL response: %s", censor(result))
                 login_dict = result.get("login")
                 if not login_dict or not isinstance(login_dict, dict):
                     raise FiftyFiveAuthError("Invalid username or password")
@@ -674,13 +692,23 @@ class FiftyFiveApiClient:
             if not await self.authenticate():
                 raise FiftyFiveAuthError("Authentication failed")
 
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "GraphQL request:\n%s\nVariables: %s",
+                _query_text(document),
+                censor(variables or {}),
+            )
+
         try:
-            return await self._client.execute_async(
+            result = await self._client.execute_async(
                 GraphQLRequest(
                     document,
                     variable_values=variables or {},
                 )
             )
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("GraphQL response: %s", censor(result))
+            return result
         except (TransportServerError, TransportError, Exception) as err:
             err_str = str(err).lower()
             if (

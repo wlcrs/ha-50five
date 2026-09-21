@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -40,8 +39,6 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         )
         self.client = client
         self.charge_stations: list[ChargeStation] = []
-        self.spot_channels: dict[str, int] = {}
-        self.entities: dict[str, Any] = {}
 
     def get_channel_id(self, spot_id: str, channel_no: int = 1) -> str:
         """Resolve the GraphQL channel ID for a station and channel number."""
@@ -78,7 +75,6 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                     continue
 
                 channels_by_num = {ch.channel_no: ch for ch in station.channels}
-                self.spot_channels[station_id] = max(1, len(channels_by_num))
 
                 data[station_id] = StationData(
                     station=station,
