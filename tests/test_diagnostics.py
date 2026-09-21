@@ -12,8 +12,10 @@ redact_mod = importlib.import_module("custom_components.50five.redact")
 
 CONF_ACCESS_TOKEN = const.CONF_ACCESS_TOKEN
 CONF_CARD_ID = const.CONF_CARD_ID
+CONF_CUSTOMER_ID = const.CONF_CUSTOMER_ID
 CONF_DEVICE_ID = const.CONF_DEVICE_ID
 mask_value = redact_mod.mask_value
+censor = redact_mod.censor
 async_get_config_entry_diagnostics = diagnostics_mod.async_get_config_entry_diagnostics
 
 
@@ -23,6 +25,8 @@ def test_mask_value() -> None:
     assert mask_value("ab") == "**"
     assert mask_value("12345678") == "12****78"
     assert mask_value("station_999") == "st*******99"
+    assert mask_value(12345) == "12*45"
+    assert censor({"id": 12345}) == {"id": "12*45"}
 
 
 async def test_diagnostics(
@@ -42,6 +46,7 @@ async def test_diagnostics(
     assert entry_diag["data"][CONF_ACCESS_TOKEN] == "**REDACTED**"
     assert entry_diag["data"][CONF_DEVICE_ID] == "**REDACTED**"
     assert entry_diag["data"][CONF_CARD_ID] == "**REDACTED**"
+    assert entry_diag["data"][CONF_CUSTOMER_ID] == "**REDACTED**"
 
     # Verify masked client identity info
     client_diag = diag["client"]
