@@ -28,12 +28,14 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
     def __init__(
         self,
         hass: HomeAssistant,
+        entry: FiftyFiveConfigEntry,
         client: FiftyFiveApiClient,
     ) -> None:
         """Initialize coordinator."""
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )

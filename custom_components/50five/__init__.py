@@ -97,11 +97,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
 
         for coordinator, spot_id, channel_id in targets:
-            config_entry = getattr(coordinator, "config_entry", None)
+            config_entry = coordinator.config_entry
             effective_card = (
                 card_id
-                or (config_entry.options.get(CONF_CARD_ID) if config_entry else None)
-                or (config_entry.data.get(CONF_CARD_ID) if config_entry else None)
+                or config_entry.options.get(CONF_CARD_ID)
+                or config_entry.data.get(CONF_CARD_ID)
             )
             await coordinator.client.start_charging(spot_id, channel_id, effective_card)
             coordinators_to_refresh.add(coordinator)
@@ -164,7 +164,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) ->
         on_token_refreshed=_async_on_token_refreshed,
     )
 
-    coordinator = FiftyFiveCoordinator(hass, client)
+    coordinator = FiftyFiveCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
 
     # Modern HA 2024.4+ runtime data storage

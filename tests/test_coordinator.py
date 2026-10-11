@@ -7,6 +7,7 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 coordinator_mod = importlib.import_module("custom_components.50five.coordinator")
 exceptions = importlib.import_module("custom_components.50five.exceptions")
@@ -23,12 +24,14 @@ from .const import MOCK_MULTI_STATION_ID, MOCK_STATION_ID
 
 async def test_coordinator_update_success(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
     mock_charge_stations: list[ChargeStation],
     mock_active_transaction: ActiveTransaction,
 ) -> None:
     """Test successful coordinator data update."""
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+    assert coordinator.config_entry is mock_config_entry
     data = await coordinator._async_update_data()
 
     assert len(data) == 2
@@ -50,11 +53,12 @@ async def test_coordinator_update_success(
 
 async def test_coordinator_no_stations(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator behavior when no stations are returned."""
     mock_api_client.get_customer_charge_stations.return_value = []
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     data = await coordinator._async_update_data()
     assert data == {}
@@ -63,12 +67,13 @@ async def test_coordinator_no_stations(
 
 async def test_coordinator_active_transaction_error_resilience(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
     mock_charge_stations: list[ChargeStation],
 ) -> None:
     """Test coordinator still succeeds when active transaction query fails."""
     mock_api_client.get_active_transaction.side_effect = FiftyFiveError("LMS timeout")
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     data = await coordinator._async_update_data()
     assert len(data) == 2
@@ -77,11 +82,12 @@ async def test_coordinator_active_transaction_error_resilience(
 
 async def test_coordinator_auth_error(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises ConfigEntryAuthFailed on FiftyFiveAuthError."""
     mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveAuthError("Token revoked")
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(ConfigEntryAuthFailed):
         await coordinator._async_update_data()
@@ -89,11 +95,12 @@ async def test_coordinator_auth_error(
 
 async def test_coordinator_api_error(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises UpdateFailed on FiftyFiveError."""
     mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveError("Server error")
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
@@ -101,11 +108,12 @@ async def test_coordinator_api_error(
 
 async def test_coordinator_unexpected_error(
     hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises UpdateFailed on unexpected exceptions."""
     mock_api_client.get_customer_charge_stations.side_effect = TypeError("Unexpected null")
-    coordinator = FiftyFiveCoordinator(hass, mock_api_client)
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
