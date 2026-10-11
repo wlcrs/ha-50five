@@ -124,27 +124,6 @@ async def test_token_refreshed_callback(
     assert mock_config_entry.data[CONF_CUSTOMER_ID] == "cust_new_456"
 
 
-async def test_update_options_listener(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test options update triggers reload."""
-    mock_config_entry.add_to_hass(hass)
-
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    with patch.object(
-        hass.config_entries, "async_reload", return_value=True
-    ) as mock_reload:
-        hass.config_entries.async_update_entry(
-            mock_config_entry,
-            options={CONF_CARD_ID: "NL-50F-NEW-1"},
-        )
-        await hass.async_block_till_done()
-        mock_reload.assert_called_once_with(mock_config_entry.entry_id)
-
 
 async def test_services_start_stop_charging(
     hass: HomeAssistant,

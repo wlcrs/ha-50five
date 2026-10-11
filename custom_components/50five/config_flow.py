@@ -8,7 +8,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigFlowResult, OptionsFlowWithReload
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
@@ -45,7 +45,9 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> OptionsFlow:
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> OptionsFlowWithReload:
         """Get options flow handler."""
         return FiftyFiveOptionsFlowHandler()
 
@@ -330,7 +332,7 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class FiftyFiveOptionsFlowHandler(OptionsFlow):
+class FiftyFiveOptionsFlowHandler(OptionsFlowWithReload):
     """Handle options flow for 50five."""
 
     async def async_step_init(
