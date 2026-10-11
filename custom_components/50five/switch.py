@@ -108,7 +108,11 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
     @property
     def available(self) -> bool:
         """Return if switch is available."""
-        return self._spot_id in self.coordinator.data
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self._spot_id in self.coordinator.data
+        )
 
     @property
     def is_on(self) -> bool:

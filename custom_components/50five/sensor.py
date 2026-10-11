@@ -295,7 +295,11 @@ class FiftyFiveBaseSensor(CoordinatorEntity[FiftyFiveCoordinator], SensorEntity)
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self._spot_id in self.coordinator.data
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self._spot_id in self.coordinator.data
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

@@ -96,7 +96,11 @@ class FiftyFiveButtonBase(CoordinatorEntity[FiftyFiveCoordinator], ButtonEntity)
     @property
     def available(self) -> bool:
         """Return if button is available."""
-        return self._spot_id in self.coordinator.data
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self._spot_id in self.coordinator.data
+        )
 
     async def _execute_action(self, action_coro) -> None:
         """Execute action and schedule non-blocking background refresh."""
