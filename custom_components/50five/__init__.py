@@ -75,10 +75,7 @@ async def _async_extract_targets(
     hass: HomeAssistant, call: ServiceCall
 ) -> list[tuple[FiftyFiveCoordinator, str, str]]:
     """Extract list of unique valid target tuples for a service call."""
-    try:
-        entity_ids = await service.async_extract_entity_ids(hass, call)
-    except TypeError:
-        entity_ids = await service.async_extract_entity_ids(call)
+    entity_ids = await service.async_extract_entity_ids(call)
 
     targets: dict[tuple[int, str, str], tuple[FiftyFiveCoordinator, str, str]] = {}
     for entity_id in entity_ids:
