@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
@@ -136,15 +137,14 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors[CONF_CONFIRM_OWNERSHIP] = "must_confirm_ownership"
             else:
                 if self._reconfig_entry:
-                    self.hass.config_entries.async_update_entry(
+                    return self.async_update_reload_and_abort(
                         self._reconfig_entry,
-                        data={
-                            **self._reconfig_entry.data,
+                        data_updates={
                             **self._data,
                             CONF_CARD_ID: selected_card,
                         },
+                        reason="reconfigure_successful",
                     )
-                    return self.async_abort(reason="reconfigure_successful")
 
                 return self.async_create_entry(
                     title=self._data[CONF_USERNAME],
@@ -178,11 +178,9 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle reconfiguration step."""
         errors: dict[str, str] = {}
-        config_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
-
-        if not config_entry:
+        try:
+            config_entry = self._get_reconfigure_entry()
+        except config_entries.UnknownEntry:
             return self.async_abort(reason="unknown")
 
         device_id = config_entry.data.get(CONF_DEVICE_ID) or str(uuid.uuid4())
@@ -254,7 +252,7 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_reauth(
-        self, entry_data: dict[str, Any]
+        self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
         """Handle re-authentication triggered by ConfigEntryAuthFailed."""
         return await self.async_step_reauth_confirm()
@@ -264,11 +262,9 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Confirm re-authentication with new password."""
         errors: dict[str, str] = {}
-        config_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
-
-        if not config_entry:
+        try:
+            config_entry = self._get_reauth_entry()
+        except config_entries.UnknownEntry:
             return self.async_abort(reason="unknown")
 
         username = config_entry.data.get(CONF_USERNAME, "")
@@ -286,8 +282,7 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 if await client.authenticate():
-                    new_data = {
-                        **config_entry.data,
+                    data_updates = {
                         CONF_PASSWORD: password,
                         CONF_ACCESS_TOKEN: client.access_token,
                         CONF_TOKEN_EXPIRES_AT: (
@@ -297,15 +292,13 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         ),
                     }
                     if client.customer_id:
-                        new_data[CONF_CUSTOMER_ID] = client.customer_id
+                        data_updates[CONF_CUSTOMER_ID] = client.customer_id
 
-                    self.hass.config_entries.async_update_entry(
-                        config_entry, data=new_data
+                    return self.async_update_reload_and_abort(
+                        config_entry,
+                        data_updates=data_updates,
+                        reason="reauth_successful",
                     )
-                    await self.hass.config_entries.async_reload(
-                        config_entry.entry_id
-                    )
-                    return self.async_abort(reason="reauth_successful")
 
                 errors["base"] = "invalid_auth"
             except AbortFlow:

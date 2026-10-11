@@ -237,13 +237,14 @@ async def test_reconfigure_flow_success(
     assert result2["type"] is FlowResultType.FORM
     assert result2["step_id"] == "card"
 
-    result3 = await hass.config_entries.flow.async_configure(
-        result2["flow_id"],
-        user_input={
-            CONF_CARD_ID: "NL-50F-999999-9",
-            CONF_CONFIRM_OWNERSHIP: True,
-        },
-    )
+    with patch.object(hass.config_entries, "async_reload", return_value=True):
+        result3 = await hass.config_entries.flow.async_configure(
+            result2["flow_id"],
+            user_input={
+                CONF_CARD_ID: "NL-50F-999999-9",
+                CONF_CONFIRM_OWNERSHIP: True,
+            },
+        )
     assert result3["type"] is FlowResultType.ABORT
     assert result3["reason"] == "reconfigure_successful"
     assert mock_config_entry.data[CONF_CARD_ID] == "NL-50F-999999-9"
