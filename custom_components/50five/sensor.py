@@ -206,6 +206,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         key="last_transaction_cost",
         translation_key="last_transaction_cost",
         device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement=CURRENCY_EURO,
         icon="mdi:cash-check",
         value_fn=lambda data, _ch: (
             data.last_transaction.total_cost if data.last_transaction else None
