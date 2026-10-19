@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from gql import gql as parse_gql
 from gql.transport.aiohttp import TransportClosed, TransportConnectionFailed
-from gql.transport.exceptions import TransportError, TransportServerError
+from gql.transport.exceptions import (
+    TransportError,
+    TransportQueryError,
+    TransportServerError,
+)
 
 api_mod = importlib.import_module("custom_components.50five.api")
 const = importlib.import_module("custom_components.50five.const")
@@ -292,6 +296,13 @@ async def test_execute_query_connection_and_api_errors() -> None:
             await client._execute_query(_DUMMY_DOC)
 
     with patch(
+        "gql.Client.execute_async",
+        side_effect=TransportQueryError("GraphQL execution error"),
+    ):
+        with pytest.raises(FiftyFiveApiError):
+            await client._execute_query(_DUMMY_DOC)
+
+    with patch(
         "gql.Client.execute_async", side_effect=RuntimeError("General API error")
     ):
         with pytest.raises(FiftyFiveApiError):
@@ -313,6 +324,7 @@ async def test_api_query_methods() -> None:
         stations = await client.get_customer_charge_stations()
         assert len(stations) == 2
         assert stations[0].id == MOCK_STATION_ID
+        mock_query.assert_awaited_once_with(api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY)
 
     # 2. get_charge_station_details
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:

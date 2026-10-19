@@ -20,7 +20,11 @@ from gql.transport.aiohttp import (
     TransportConnectionFailed,
     close_files,
 )
-from gql.transport.exceptions import TransportError, TransportServerError
+from gql.transport.exceptions import (
+    TransportError,
+    TransportQueryError,
+    TransportServerError,
+)
 from graphql import print_ast
 
 from .const import DEFAULT_BASE_URL, DEFAULT_VAT_MULTIPLIER, VAT_MULTIPLIERS
@@ -119,7 +123,7 @@ query GetCustomerChargecards($getCustomerByIdId: ID!) {
 """)
 
 GET_CUSTOMER_CHARGE_STATIONS_QUERY = gql("""
-query GetCustomerChargeStations($txFilters: TransactionFilter, $txSort: TransactionSort) {
+query GetCustomerChargeStations {
   getCustomerChargeStations {
     id
     commId
@@ -169,34 +173,6 @@ query GetCustomerChargeStations($txFilters: TransactionFilter, $txSort: Transact
     homeChargingCompensation {
       hccEnabled
       hccTariff
-    }
-    transactions(filters: $txFilters, sort: $txSort) {
-      items {
-        id
-        status
-        globalStatus
-        type
-        startDate
-        lastUpdateDate
-        totalDuration
-        totalEnergy
-        totalIdleTime
-        homeCharging
-        cardSnapshot {
-          externalId
-          internalId
-          contractId
-          type
-        }
-        transactionPrices {
-          totalCost
-          type
-          vatPercentage
-          currency {
-            code
-          }
-        }
-      }
     }
   }
 }
@@ -738,6 +714,9 @@ class FiftyFiveApiClient:
                     "Re-authentication failed after token expiry"
                 ) from err
 
+            if isinstance(err, TransportQueryError):
+                raise FiftyFiveApiError(f"GraphQL execution error: {err}") from err
+
             if isinstance(err, (aiohttp.ClientConnectorError, TransportError)):
                 raise FiftyFiveConnectionError(
                     f"Cannot connect to 50five API: {err}"
@@ -748,21 +727,9 @@ class FiftyFiveApiClient:
     async def get_customer_charge_stations(
         self, days_back: int = 30
     ) -> list[ChargeStation]:
-        """Retrieve customer charge stations with nested last transactions."""
+        """Retrieve customer charge stations."""
         vat_multiplier = await self.get_vat_multiplier()
-        now = datetime.now(timezone.utc)
-        date_from = (now - timedelta(days=min(days_back, 31))).strftime("%Y-%m-%d")
-        date_to = now.strftime("%Y-%m-%d")
-
-        variables = {
-            "txFilters": {
-                "dateFrom": date_from,
-                "dateTo": date_to,
-                "itemsPerPage": 5,
-            },
-            "txSort": {"startDate": "desc"},
-        }
-        data = await self._execute_query(GET_CUSTOMER_CHARGE_STATIONS_QUERY, variables)
+        data = await self._execute_query(GET_CUSTOMER_CHARGE_STATIONS_QUERY)
         raw_stations = data.get("getCustomerChargeStations") or []
         return [
             ChargeStation.from_dict(st, vat_multiplier=vat_multiplier)
