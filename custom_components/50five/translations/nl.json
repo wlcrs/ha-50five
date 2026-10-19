@@ -79,9 +79,6 @@
           "unknown": "Onbekend"
         }
       },
-      "current_power": {
-        "name": "Huidig vermogen"
-      },
       "session_energy": {
         "name": "Sessie-energie"
       },
@@ -130,9 +127,6 @@
           "reserved": "Gereserveerd",
           "unknown": "Onbekend"
         }
-      },
-      "channel_current_power": {
-        "name": "Ch {channel} huidig vermogen"
       },
       "channel_session_energy": {
         "name": "Ch {channel} sessie-energie"

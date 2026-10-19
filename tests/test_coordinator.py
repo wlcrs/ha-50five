@@ -1,5 +1,6 @@
 """Tests for the 50five DataUpdateCoordinator."""
 
+import dataclasses
 import importlib
 from unittest.mock import AsyncMock
 
@@ -117,3 +118,46 @@ async def test_coordinator_unexpected_error(
 
     with pytest.raises(UpdateFailed):
         await coordinator._async_update_data()
+
+
+async def test_coordinator_completed_transactions_error_resilience(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_stations: list[ChargeStation],
+) -> None:
+    """Test coordinator still succeeds when completed transactions query fails."""
+    stations_without_tx = [
+        dataclasses.replace(st, transactions=[]) for st in mock_charge_stations
+    ]
+    mock_api_client.get_customer_charge_stations.return_value = stations_without_tx
+    mock_api_client.get_charge_station_transactions.side_effect = FiftyFiveError(
+        "Cannot read properties of undefined (reading 'country')"
+    )
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+
+    data = await coordinator._async_update_data()
+    assert len(data) == 2
+    assert data[MOCK_STATION_ID].last_transaction is None
+
+
+async def test_coordinator_completed_transactions_fetch_success(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_stations: list[ChargeStation],
+) -> None:
+    """Test coordinator attaches fetched completed transactions."""
+    stations_without_tx = [
+        dataclasses.replace(st, transactions=[]) for st in mock_charge_stations
+    ]
+    mock_api_client.get_customer_charge_stations.return_value = stations_without_tx
+    mock_api_client.get_charge_station_transactions.return_value = (
+        mock_charge_stations[0].transactions
+    )
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+
+    data = await coordinator._async_update_data()
+    assert len(data) == 2
+    assert data[MOCK_STATION_ID].last_transaction is not None
+    assert data[MOCK_STATION_ID].last_transaction.total_energy == 28.5

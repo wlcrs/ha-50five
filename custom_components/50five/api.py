@@ -34,6 +34,7 @@ from .models import (
     ActiveTransaction,
     ChargeCard,
     ChargeStation,
+    CompletedTransaction,
     LoginResult,
 )
 from .redact import censor
@@ -202,7 +203,7 @@ query GetCustomerChargeStations($txFilters: TransactionFilter, $txSort: Transact
 """)
 
 GET_CHARGE_STATION_DETAILS_QUERY = gql("""
-query GetChargeStationDetails($getChargeStationByIdId: ID!, $txFilters: TransactionFilter, $txSort: TransactionSort) {
+query GetChargeStationDetails($getChargeStationByIdId: ID!) {
   getChargeStationById(id: $getChargeStationByIdId) {
     id
     commId
@@ -236,6 +237,14 @@ query GetChargeStationDetails($getChargeStationByIdId: ID!, $txFilters: Transact
       vendor
       model
     }
+  }
+}
+""")
+
+GET_CHARGE_STATION_TRANSACTIONS_QUERY = gql("""
+query GetChargeStationTransactions($getChargeStationByIdId: ID!, $txFilters: TransactionFilter, $txSort: TransactionSort) {
+  getChargeStationById(id: $getChargeStationByIdId) {
+    id
     transactions(filters: $txFilters, sort: $txSort) {
       items {
         id
@@ -764,8 +773,21 @@ class FiftyFiveApiClient:
     async def get_charge_station_details(
         self, charge_station_id: str, days_back: int = 30
     ) -> ChargeStation | None:
-        """Retrieve detailed charge station information with nested last transactions."""
+        """Retrieve detailed charge station information."""
         vat_multiplier = await self.get_vat_multiplier()
+        variables = {
+            "getChargeStationByIdId": str(charge_station_id),
+        }
+        data = await self._execute_query(GET_CHARGE_STATION_DETAILS_QUERY, variables)
+        station_data = data.get("getChargeStationById")
+        if station_data and isinstance(station_data, dict):
+            return ChargeStation.from_dict(station_data, vat_multiplier=vat_multiplier)
+        return None
+
+    async def get_charge_station_transactions(
+        self, charge_station_id: str, days_back: int = 30
+    ) -> list[CompletedTransaction]:
+        """Retrieve completed transactions for a specific charge station."""
         now = datetime.now(timezone.utc)
         date_from = (now - timedelta(days=min(days_back, 31))).strftime("%Y-%m-%d")
         date_to = now.strftime("%Y-%m-%d")
@@ -779,11 +801,23 @@ class FiftyFiveApiClient:
             },
             "txSort": {"startDate": "desc"},
         }
-        data = await self._execute_query(GET_CHARGE_STATION_DETAILS_QUERY, variables)
+        data = await self._execute_query(
+            GET_CHARGE_STATION_TRANSACTIONS_QUERY, variables
+        )
         station_data = data.get("getChargeStationById")
-        if station_data and isinstance(station_data, dict):
-            return ChargeStation.from_dict(station_data, vat_multiplier=vat_multiplier)
-        return None
+        if not station_data or not isinstance(station_data, dict):
+            return []
+        tx_container = station_data.get("transactions") or {}
+        raw_txs = tx_container.get("items") or []
+        return [
+            tx
+            for tx in (
+                CompletedTransaction.from_dict(t)
+                for t in raw_txs
+                if isinstance(t, dict)
+            )
+            if tx is not None
+        ]
 
     async def get_active_transaction(self) -> ActiveTransaction | None:
         """Retrieve active charging session telemetry as strongly typed model."""

@@ -79,9 +79,6 @@
           "unknown": "Unknown"
         }
       },
-      "current_power": {
-        "name": "Current power"
-      },
       "session_energy": {
         "name": "Session energy"
       },
@@ -130,9 +127,6 @@
           "reserved": "Reserved",
           "unknown": "Unknown"
         }
-      },
-      "channel_current_power": {
-        "name": "Ch {channel} Current power"
       },
       "channel_session_energy": {
         "name": "Ch {channel} Session energy"

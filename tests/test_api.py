@@ -338,6 +338,27 @@ async def test_api_query_methods() -> None:
         tokens = await client.get_tokens()
         assert len(tokens) == 2
 
+    # 5. get_charge_station_transactions
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = {
+            "getChargeStationById": {
+                "id": MOCK_STATION_ID,
+                "transactions": {
+                    "items": [
+                        {
+                            "id": "tx_test_1",
+                            "status": "COMPLETED",
+                            "totalEnergy": 15.0,
+                        }
+                    ]
+                },
+            }
+        }
+        txs = await client.get_charge_station_transactions(MOCK_STATION_ID)
+        assert len(txs) == 1
+        assert txs[0].id == "tx_test_1"
+        assert txs[0].total_energy == 15.0
+
 
 async def test_get_charge_cards_edge_cases() -> None:
     """Test get_charge_cards when customer ID missing or response empty."""

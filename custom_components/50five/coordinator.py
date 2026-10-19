@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from datetime import timedelta
 
@@ -78,8 +79,30 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
 
                 channels_by_num = {ch.channel_no: ch for ch in station.channels}
 
+                # Resiliently fetch completed transactions per station if not already attached
+                station_to_store = station
+                if not station.transactions:
+                    try:
+                        txs = await self.client.get_charge_station_transactions(station_id)
+                        if txs:
+                            station_to_store = dataclasses.replace(
+                                station, transactions=txs
+                            )
+                    except FiftyFiveError as tx_err:
+                        _LOGGER.warning(
+                            "Could not fetch recent transactions for station %s: %s",
+                            station_id,
+                            tx_err,
+                        )
+                    except Exception as tx_err:
+                        _LOGGER.debug(
+                            "Unexpected error fetching transactions for station %s: %s",
+                            station_id,
+                            tx_err,
+                        )
+
                 data[station_id] = StationData(
-                    station=station,
+                    station=station_to_store,
                     channels=channels_by_num,
                     active_transaction=active_transaction,
                 )

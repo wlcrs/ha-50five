@@ -53,15 +53,6 @@ def _matching_active_tx(data: StationData, channel_no: int):
         return None
     return tx
 
-
-def _get_current_power(data: StationData, channel_no: int) -> float:
-    """Return momentary charging power (kW)."""
-    tx = _matching_active_tx(data, channel_no)
-    if not tx:
-        return 0.0
-    return 0.0
-
-
 def _get_session_duration(data: StationData, channel_no: int) -> float:
     """Return active charging session duration in seconds."""
     tx = _matching_active_tx(data, channel_no)
@@ -104,15 +95,6 @@ CHANNEL_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         options=[status.value for status in GlobalStatus],
         icon="mdi:ev-station",
         value_fn=_get_channel_status,
-    ),
-    FiftyFiveSensorEntityDescription(
-        key="current_power",
-        translation_key="current_power",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.KILO_WATT,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:lightning-bolt",
-        value_fn=_get_current_power,
     ),
     FiftyFiveSensorEntityDescription(
         key="session_energy",

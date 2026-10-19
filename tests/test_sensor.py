@@ -30,11 +30,6 @@ async def test_sensors_single_channel_station(
     assert status_state is not None
     assert status_state.state == "available"
 
-    # Current power sensor
-    power_state = hass.states.get("sensor.home_charger_single_current_power")
-    assert power_state is not None
-    assert float(power_state.state) == 0.0
-
     # Active session energy sensor (active transaction has 12.4 kWh)
     energy_state = hass.states.get("sensor.home_charger_single_session_energy")
     assert energy_state is not None

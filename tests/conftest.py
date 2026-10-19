@@ -35,7 +35,6 @@ ChargeStation = models.ChargeStation
 
 from .const import (
     MOCK_ACTIVE_TRANSACTION_RESPONSE,
-    MOCK_CARD_ID,
     MOCK_CONFIG_DATA,
     MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE,
     MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE,
@@ -130,6 +129,7 @@ def mock_api_client(
         client.get_charge_station_details = AsyncMock(
             return_value=mock_charge_stations[0]
         )
+        client.get_charge_station_transactions = AsyncMock(return_value=[])
         client.get_active_transaction = AsyncMock(return_value=mock_active_transaction)
         client.get_charge_cards = AsyncMock(return_value=mock_charge_cards)
         client.get_tokens = AsyncMock(return_value=mock_charge_cards)
