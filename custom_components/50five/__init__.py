@@ -40,7 +40,11 @@ def _resolve_fiftyfive_target(
 ) -> tuple[FiftyFiveCoordinator, str, str] | None:
     """Resolve entity_id to (coordinator, spot_id, channel_id)."""
     entity_entry = er.async_get(hass).async_get(entity_id)
-    if not entity_entry or not entity_entry.config_entry_id or not entity_entry.unique_id:
+    if (
+        not entity_entry
+        or not entity_entry.config_entry_id
+        or not entity_entry.unique_id
+    ):
         return None
 
     config_entry: FiftyFiveConfigEntry | None = hass.config_entries.async_get_entry(
@@ -56,7 +60,9 @@ def _resolve_fiftyfive_target(
     if entity_entry.device_id:
         dev = dr.async_get(hass).async_get(entity_entry.device_id)
         if dev:
-            spot_id = next((ident for dom, ident in dev.identifiers if dom == DOMAIN), None)
+            spot_id = next(
+                (ident for dom, ident in dev.identifiers if dom == DOMAIN), None
+            )
 
     if not spot_id:
         spot_id = entity_entry.unique_id.split("_", 1)[0]

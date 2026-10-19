@@ -323,9 +323,7 @@ class HomeChargingCompensation:
             return cls(vat_multiplier=vat_multiplier)
         tariff = data.get("hccTariff")
         tariff_float = float(tariff) if tariff is not None else None
-        raw_hcc_tariff = (
-            round(tariff_float, 4) if tariff_float is not None else None
-        )
+        raw_hcc_tariff = round(tariff_float, 4) if tariff_float is not None else None
         hcc_tariff = (
             round(tariff_float * vat_multiplier, 4)
             if tariff_float is not None
@@ -503,13 +501,7 @@ class ChargeCard:
     @property
     def identifier(self) -> str:
         """Preferred identifier to use when starting transactions."""
-        return (
-            self.external_id
-            or self.contract_id
-            or self.internal_id
-            or self.id
-            or ""
-        )
+        return self.external_id or self.contract_id or self.internal_id or self.id or ""
 
     @property
     def display_name(self) -> str:
@@ -558,4 +550,3 @@ class ChargeCard:
             transaction_customer_id=str(tx_cust_id) if tx_cust_id is not None else None,
             info=data.get("info"),
         )
-

@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfPower, UnitOfTime
+from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -52,6 +52,7 @@ def _matching_active_tx(data: StationData, channel_no: int):
     ):
         return None
     return tx
+
 
 def _get_session_duration(data: StationData, channel_no: int) -> float:
     """Return active charging session duration in seconds."""

@@ -3,7 +3,6 @@
 import importlib
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -27,8 +26,6 @@ FiftyFiveError = exceptions.FiftyFiveError
 
 from .const import (
     MOCK_CARD_ID,
-    MOCK_CONFIG_DATA,
-    MOCK_PASSWORD,
     MOCK_USER_STEP_INPUT,
     MOCK_USERNAME,
 )

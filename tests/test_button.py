@@ -41,12 +41,10 @@ async def test_button_entities_created(
 
     # Multi-channel unlock connector buttons
     assert (
-        hass.states.get("button.office_charger_dual_ch_1_unlock_connector")
-        is not None
+        hass.states.get("button.office_charger_dual_ch_1_unlock_connector") is not None
     )
     assert (
-        hass.states.get("button.office_charger_dual_ch_2_unlock_connector")
-        is not None
+        hass.states.get("button.office_charger_dual_ch_2_unlock_connector") is not None
     )
 
 

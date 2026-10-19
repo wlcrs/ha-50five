@@ -1,15 +1,13 @@
 """Tests for 50five GraphQL API client."""
 
-import asyncio
 import importlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from gql import gql as parse_gql
 from gql.transport.aiohttp import TransportClosed, TransportConnectionFailed
 from gql.transport.exceptions import (
-    TransportError,
     TransportQueryError,
     TransportServerError,
 )
@@ -35,7 +33,6 @@ from .const import (
     MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE,
     MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE,
     MOCK_CUSTOMER_ID,
-    MOCK_CUSTOMER_RESPONSE,
     MOCK_DEVICE_ID,
     MOCK_LOGIN_RESPONSE,
     MOCK_PASSWORD,
@@ -93,7 +90,7 @@ def test_api_client_initialization_and_token_expiry() -> None:
         username=MOCK_USERNAME,
         password=MOCK_PASSWORD,
         access_token="some_token",
-        token_expires_at=datetime(2035, 1, 1, tzinfo=timezone.utc),
+        token_expires_at=datetime(2035, 1, 1, tzinfo=UTC),
     )
     assert client_dt.is_token_expired() is False
 
@@ -162,6 +159,7 @@ async def test_authenticate_expiration_fallbacks() -> None:
 
 async def test_authenticate_callback_exception_handling() -> None:
     """Test authenticate still succeeds if callback raises."""
+
     def bad_callback(token, expires, cust_id):
         raise RuntimeError("Callback crash")
 
@@ -254,19 +252,20 @@ async def test_execute_query_reauth_on_401() -> None:
         username=MOCK_USERNAME,
         password=MOCK_PASSWORD,
         access_token=MOCK_ACCESS_TOKEN,
-        token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
 
     async def _mock_authenticate():
         client._access_token = "refreshed_token"
-        client._token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        client._token_expires_at = datetime.now(UTC) + timedelta(hours=1)
         return True
 
-    with patch.object(
-        client, "authenticate", side_effect=_mock_authenticate
-    ) as mock_auth, patch(
-        "gql.Client.execute_async", new_callable=AsyncMock
-    ) as mock_exec:
+    with (
+        patch.object(
+            client, "authenticate", side_effect=_mock_authenticate
+        ) as mock_auth,
+        patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec,
+    ):
         # First call fails with 401, second succeeds after auth
         mock_exec.side_effect = [
             TransportServerError("401 Unauthorized"),
@@ -285,28 +284,35 @@ async def test_execute_query_connection_and_api_errors() -> None:
         username=MOCK_USERNAME,
         password=MOCK_PASSWORD,
         access_token=MOCK_ACCESS_TOKEN,
-        token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
 
     _DUMMY_DOC = parse_gql("{ __typename }")
-    with patch(
-        "gql.Client.execute_async", side_effect=TransportConnectionFailed("Conn err")
+    with (
+        patch(
+            "gql.Client.execute_async",
+            side_effect=TransportConnectionFailed("Conn err"),
+        ),
+        pytest.raises(FiftyFiveConnectionError),
     ):
-        with pytest.raises(FiftyFiveConnectionError):
-            await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC)
 
-    with patch(
-        "gql.Client.execute_async",
-        side_effect=TransportQueryError("GraphQL execution error"),
+    with (
+        patch(
+            "gql.Client.execute_async",
+            side_effect=TransportQueryError("GraphQL execution error"),
+        ),
+        pytest.raises(FiftyFiveApiError),
     ):
-        with pytest.raises(FiftyFiveApiError):
-            await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC)
 
-    with patch(
-        "gql.Client.execute_async", side_effect=RuntimeError("General API error")
+    with (
+        patch(
+            "gql.Client.execute_async", side_effect=RuntimeError("General API error")
+        ),
+        pytest.raises(FiftyFiveApiError),
     ):
-        with pytest.raises(FiftyFiveApiError):
-            await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC)
 
 
 async def test_api_query_methods() -> None:

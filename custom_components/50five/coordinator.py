@@ -83,7 +83,9 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 station_to_store = station
                 if not station.transactions:
                     try:
-                        txs = await self.client.get_charge_station_transactions(station_id)
+                        txs = await self.client.get_charge_station_transactions(
+                            station_id
+                        )
                         if txs:
                             station_to_store = dataclasses.replace(
                                 station, transactions=txs
@@ -94,7 +96,7 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                             station_id,
                             tx_err,
                         )
-                    except Exception as tx_err:
+                    except Exception as tx_err:  # noqa: BLE001
                         _LOGGER.debug(
                             "Unexpected error fetching transactions for station %s: %s",
                             station_id,

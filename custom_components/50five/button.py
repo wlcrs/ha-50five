@@ -118,9 +118,7 @@ class FiftyFiveButtonBase(CoordinatorEntity[FiftyFiveCoordinator], ButtonEntity)
 
             self.hass.async_create_task(_delayed_refresh())
         except Exception:
-            _LOGGER.exception(
-                "Failed to execute %s", self._button_type
-            )
+            _LOGGER.exception("Failed to execute %s", self._button_type)
             raise
 
 

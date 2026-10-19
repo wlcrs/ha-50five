@@ -62,4 +62,3 @@ VAT_MULTIPLIERS: dict[str, float] = {
     "UBER": 1.0,
 }
 DEFAULT_VAT_MULTIPLIER = 1.21  # Default fallback (NL)
-

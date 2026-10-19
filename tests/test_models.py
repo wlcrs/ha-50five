@@ -1,7 +1,7 @@
 """Tests for 50five typed data models."""
 
 import importlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 models = importlib.import_module("custom_components.50five.models")
 
@@ -102,8 +102,8 @@ def test_completed_transaction_model() -> None:
     assert tx.card_id == "NL-50F-111"
     assert tx.total_cost == 7.70
     assert tx.currency == "EUR"
-    assert tx.start_datetime == datetime(2024, 8, 1, 12, 0, 0, tzinfo=timezone.utc)
-    assert tx.end_datetime == datetime(2024, 8, 1, 14, 30, 0, tzinfo=timezone.utc)
+    assert tx.start_datetime == datetime(2024, 8, 1, 12, 0, 0, tzinfo=UTC)
+    assert tx.end_datetime == datetime(2024, 8, 1, 14, 30, 0, tzinfo=UTC)
 
     # Fallback to internalId or contractId if externalId missing
     data_internal = {
@@ -182,9 +182,7 @@ def test_charge_station_and_station_data() -> None:
             "address": "Main St 1",
             "countryDetails": {"code": "NL", "currency": {"code": "EUR"}},
         },
-        "transactions": {
-            "items": [{"id": "tx_prev", "totalEnergy": 10.0}]
-        },
+        "transactions": {"items": [{"id": "tx_prev", "totalEnergy": 10.0}]},
     }
     station = ChargeStation.from_dict(station_dict, vat_multiplier=1.21)
     assert station.id == "st_1"

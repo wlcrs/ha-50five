@@ -87,7 +87,9 @@ async def test_coordinator_auth_error(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises ConfigEntryAuthFailed on FiftyFiveAuthError."""
-    mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveAuthError("Token revoked")
+    mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveAuthError(
+        "Token revoked"
+    )
     coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(ConfigEntryAuthFailed):
@@ -100,7 +102,9 @@ async def test_coordinator_api_error(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises UpdateFailed on FiftyFiveError."""
-    mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveError("Server error")
+    mock_api_client.get_customer_charge_stations.side_effect = FiftyFiveError(
+        "Server error"
+    )
     coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(UpdateFailed):
@@ -113,7 +117,9 @@ async def test_coordinator_unexpected_error(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test coordinator raises UpdateFailed on unexpected exceptions."""
-    mock_api_client.get_customer_charge_stations.side_effect = TypeError("Unexpected null")
+    mock_api_client.get_customer_charge_stations.side_effect = TypeError(
+        "Unexpected null"
+    )
     coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     with pytest.raises(UpdateFailed):
@@ -152,9 +158,9 @@ async def test_coordinator_completed_transactions_fetch_success(
         dataclasses.replace(st, transactions=[]) for st in mock_charge_stations
     ]
     mock_api_client.get_customer_charge_stations.return_value = stations_without_tx
-    mock_api_client.get_charge_station_transactions.return_value = (
-        mock_charge_stations[0].transactions
-    )
+    mock_api_client.get_charge_station_transactions.return_value = mock_charge_stations[
+        0
+    ].transactions
     coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     data = await coordinator._async_update_data()

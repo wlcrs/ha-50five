@@ -62,7 +62,10 @@ async def test_diagnostics(
     station = st1["station"]
     assert station["id"] == mask_value("station_999")
     assert station["name"] == "Home Charger Single"
-    assert station["manufacturer"] == {"vendor": "Alfen", "model": "Eve Single Pro-line"}
+    assert station["manufacturer"] == {
+        "vendor": "Alfen",
+        "model": "Eve Single Pro-line",
+    }
     assert station["access_options"]["access_type"] == "private"
     assert station["hcc"]["hcc_enabled"] is True
     assert station["hcc"]["hcc_tariff"] == 0.363

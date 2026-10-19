@@ -12,8 +12,6 @@ ATTR_RAW_TARIFF = const.ATTR_RAW_TARIFF
 ATTR_VAT = const.ATTR_VAT
 ATTR_VAT_MULTIPLIER = const.ATTR_VAT_MULTIPLIER
 
-from .const import MOCK_MULTI_STATION_ID, MOCK_STATION_ID
-
 
 async def test_sensors_single_channel_station(
     hass: HomeAssistant,

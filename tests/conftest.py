@@ -3,7 +3,7 @@
 import importlib
 import threading
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -101,14 +101,17 @@ def mock_api_client(
     mock_active_transaction: ActiveTransaction,
 ) -> Generator[AsyncMock]:
     """Return a mocked FiftyFiveApiClient."""
-    with patch.object(
-        init_mod,
-        "FiftyFiveApiClient",
-        autospec=True,
-    ) as mock_client_cls, patch.object(
-        config_flow_mod,
-        "FiftyFiveApiClient",
-        new=mock_client_cls,
+    with (
+        patch.object(
+            init_mod,
+            "FiftyFiveApiClient",
+            autospec=True,
+        ) as mock_client_cls,
+        patch.object(
+            config_flow_mod,
+            "FiftyFiveApiClient",
+            new=mock_client_cls,
+        ),
     ):
         client = mock_client_cls.return_value
         client.username = MOCK_USERNAME
@@ -116,7 +119,7 @@ def mock_api_client(
         client.device_id = "550e8400-e29b-41d4-a716-446655440000"
         client.customer_id = "cust_12345"
         client.access_token = "mock_token"
-        client.token_expires_at = datetime(2030, 1, 1, tzinfo=timezone.utc)
+        client.token_expires_at = datetime(2030, 1, 1, tzinfo=UTC)
         client.base_url = "https://api.example.com/graphql"
         client.is_authenticated = True
         client.is_token_expired.return_value = False
@@ -129,6 +132,7 @@ def mock_api_client(
         client.get_charge_station_details = AsyncMock(
             return_value=mock_charge_stations[0]
         )
+
         async def _mock_get_transactions(station_id: str, days_back: int = 30):
             for st in mock_charge_stations:
                 if st.id == station_id:
@@ -154,7 +158,5 @@ def mock_api_client(
 @pytest.fixture
 def mock_setup_entry() -> Generator[AsyncMock]:
     """Mock async_setup_entry."""
-    with patch.object(
-        init_mod, "async_setup_entry", return_value=True
-    ) as mock_setup:
+    with patch.object(init_mod, "async_setup_entry", return_value=True) as mock_setup:
         yield mock_setup

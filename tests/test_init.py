@@ -3,7 +3,6 @@
 import importlib
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -106,9 +105,7 @@ async def test_token_refreshed_callback(
         client.get_active_transaction = AsyncMock(return_value=None)
         return client
 
-    with patch.object(
-        init_mod, "FiftyFiveApiClient", side_effect=mock_client_init
-    ):
+    with patch.object(init_mod, "FiftyFiveApiClient", side_effect=mock_client_init):
         await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
 
@@ -122,7 +119,6 @@ async def test_token_refreshed_callback(
     assert mock_config_entry.data[CONF_ACCESS_TOKEN] == "new_token_123"
     assert mock_config_entry.data[CONF_TOKEN_EXPIRES_AT] == "2030-01-01T00:00:00Z"
     assert mock_config_entry.data[CONF_CUSTOMER_ID] == "cust_new_456"
-
 
 
 async def test_services_start_stop_charging(
@@ -213,7 +209,6 @@ async def test_services_with_device_id_target(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test 50five.start_charging and 50five.stop_charging targeting a device."""
-    from homeassistant.helpers import device_registry as dr
 
     await async_setup(hass, {})
     mock_config_entry.add_to_hass(hass)
@@ -274,4 +269,3 @@ async def test_services_with_sensor_entity_target(
     mock_api_client.start_charging.assert_called_once_with(
         MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
     )
-

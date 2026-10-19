@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import json
 import logging
 import uuid
 from collections.abc import Callable, Coroutine
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import aiohttp
@@ -53,9 +54,11 @@ def _extract_jwt_claims(token: str) -> dict[str, Any]:
         if len(parts) >= 2:
             payload_b64 = parts[1]
             padded = payload_b64 + "=" * (-len(payload_b64) % 4)
-            return json.loads(base64.urlsafe_b64decode(padded.encode()))
-    except Exception:
-        pass
+            data = json.loads(base64.urlsafe_b64decode(padded.encode()))
+            if isinstance(data, dict):
+                return data
+    except (ValueError, TypeError, binascii.Error) as err:
+        _LOGGER.debug("Failed to extract JWT claims: %s", err)
     return {}
 
 
@@ -70,7 +73,7 @@ def _query_text(document: Any) -> str:
     doc = getattr(document, "document", document)
     try:
         return print_ast(doc)
-    except Exception:
+    except TypeError, ValueError, AttributeError:
         return str(document)
 
 
@@ -422,12 +425,11 @@ class FiftyFiveApiClient:
             claims = _extract_jwt_claims(self._access_token)
             exp = claims.get("exp")
             if exp:
-                self._token_expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+                self._token_expires_at = datetime.fromtimestamp(exp, tz=UTC)
             if not self.customer_id:
-                self.customer_id = (
-                    claims.get("external_api", {}).get("customerId")
-                    or claims.get("id")
-                )
+                self.customer_id = claims.get("external_api", {}).get(
+                    "customerId"
+                ) or claims.get("id")
 
         self._vat_multiplier: float | None = None
         self._auth_lock = asyncio.Lock()
@@ -454,14 +456,14 @@ class FiftyFiveApiClient:
         if not self._access_token:
             return True
         if self._token_expires_at is not None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             return now + timedelta(seconds=buffer_seconds) >= self._token_expires_at
 
         claims = _extract_jwt_claims(self._access_token)
         exp = claims.get("exp")
         if exp:
-            self._token_expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+            self._token_expires_at = datetime.fromtimestamp(exp, tz=UTC)
+            now = datetime.now(UTC)
             return now + timedelta(seconds=buffer_seconds) >= self._token_expires_at
 
         return False
@@ -548,23 +550,18 @@ class FiftyFiveApiClient:
                 claims = _extract_jwt_claims(self._access_token)
                 exp = claims.get("exp")
                 if exp:
-                    self._token_expires_at = datetime.fromtimestamp(
-                        exp, tz=timezone.utc
-                    )
+                    self._token_expires_at = datetime.fromtimestamp(exp, tz=UTC)
                 elif login_result.expires_in:
-                    self._token_expires_at = datetime.now(timezone.utc) + timedelta(
+                    self._token_expires_at = datetime.now(UTC) + timedelta(
                         seconds=login_result.expires_in
                     )
                 else:
-                    self._token_expires_at = datetime.now(timezone.utc) + timedelta(
-                        hours=24
-                    )
+                    self._token_expires_at = datetime.now(UTC) + timedelta(hours=24)
 
                 if not self.customer_id:
-                    self.customer_id = (
-                        claims.get("external_api", {}).get("customerId")
-                        or claims.get("id")
-                    )
+                    self.customer_id = claims.get("external_api", {}).get(
+                        "customerId"
+                    ) or claims.get("id")
 
                 self._vat_multiplier = None
                 self._rebuild_client()
@@ -579,14 +576,14 @@ class FiftyFiveApiClient:
                         )
                         if asyncio.iscoroutine(res):
                             await res
-                    except Exception as cb_err:
+                    except Exception as cb_err:  # noqa: BLE001
                         _LOGGER.debug(
                             "Error invoking token refresh callback: %s", cb_err
                         )
 
                 return True
 
-            except (FiftyFiveAuthError, FiftyFiveConnectionError):
+            except FiftyFiveAuthError, FiftyFiveConnectionError:
                 raise
             except (TransportServerError, TransportError) as err:
                 err_str = str(err).lower()
@@ -657,7 +654,7 @@ class FiftyFiveApiClient:
                     "Could not fetch customer providerCategory for VAT calculation: %s",
                     err,
                 )
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Unexpected error fetching customer providerCategory: %s", err
                 )
@@ -755,7 +752,7 @@ class FiftyFiveApiClient:
         self, charge_station_id: str, days_back: int = 30
     ) -> list[CompletedTransaction]:
         """Retrieve completed transactions for a specific charge station."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         date_from = (now - timedelta(days=min(days_back, 31))).strftime("%Y-%m-%d")
         date_to = now.strftime("%Y-%m-%d")
 
@@ -812,11 +809,7 @@ class FiftyFiveApiClient:
             return []
 
         raw_cards = cust.get("cards") or []
-        cards = [
-            ChargeCard.from_dict(c)
-            for c in raw_cards
-            if isinstance(c, dict)
-        ]
+        cards = [ChargeCard.from_dict(c) for c in raw_cards if isinstance(c, dict)]
         return [c for c in cards if c is not None]
 
     async def get_tokens(self) -> list[ChargeCard]:
