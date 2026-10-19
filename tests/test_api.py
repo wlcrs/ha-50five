@@ -323,6 +323,7 @@ async def test_api_query_methods() -> None:
         access_token=MOCK_ACCESS_TOKEN,
         customer_id=MOCK_CUSTOMER_ID,
     )
+    client.get_vat_multiplier = AsyncMock(return_value=DEFAULT_VAT_MULTIPLIER)
 
     # 1. get_customer_charge_stations
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
