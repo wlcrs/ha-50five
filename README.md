@@ -28,7 +28,6 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 
 ### 📊 Real-Time & Active Session Sensors
 * **Connector Status**: Operational state enum (`Available`, `Charging`, `Occupied`, `Faulted`, `Unavailable`, `Suspended (EVSE)`, `Suspended (EV)`, `Preparing`, `Finishing`, `Reserved`, `Unknown`).
-* **Current Power**: Instantaneous charging power (kW).
 * **Session Energy**: Total energy delivered during the active charging session (kWh).
 * **Session Time**: Active charging session duration (hours).
 * **Session Cost**: Total monetary cost accrued during the active session (€).

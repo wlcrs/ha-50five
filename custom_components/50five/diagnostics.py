@@ -21,6 +21,8 @@ TO_REDACT = {
     CONF_CARD_ID,
     CONF_CUSTOMER_ID,
     CONF_DEVICE_ID,
+    "title",
+    "unique_id",
 }
 
 

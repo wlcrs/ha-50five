@@ -43,6 +43,8 @@ async def test_diagnostics(
 
     # Verify config_entry redactions
     entry_diag = diag["config_entry"]
+    assert entry_diag["title"] == "**REDACTED**"
+    assert entry_diag["unique_id"] == "**REDACTED**"
     assert entry_diag["data"][CONF_ACCESS_TOKEN] == "**REDACTED**"
     assert entry_diag["data"][CONF_DEVICE_ID] == "**REDACTED**"
     assert entry_diag["data"][CONF_CARD_ID] == "**REDACTED**"
