@@ -26,7 +26,7 @@ from gql.transport.exceptions import (
     TransportQueryError,
     TransportServerError,
 )
-from graphql import print_ast
+from graphql import get_operation_ast, print_ast
 
 from .const import DEFAULT_BASE_URL, DEFAULT_VAT_MULTIPLIER, VAT_MULTIPLIERS
 from .exceptions import (
@@ -77,14 +77,27 @@ def _query_text(document: Any) -> str:
         return str(document)
 
 
+def _operation_name(document: Any) -> str | None:
+    """Return a GraphQL document's operation name, if it has one."""
+    doc = getattr(document, "document", document)
+    operation = get_operation_ast(doc)
+    if operation is None or operation.name is None:
+        return None
+    return operation.name.value
+
+
 # GraphQL Documents parsed as AST via gql DSL
 LOGIN_MUTATION = gql("""
-mutation Login($email: String!, $password: String!) {
-  login(email: $email, password: $password) {
-    accessToken: access_token
-    expiresIn: expires_in
-    tokenType: token_type
+mutation LoginFiftyFive($email: String!, $password: String!) {
+  loginFiftyFive(email: $email, password: $password) {
+    ...JwtToken
   }
+}
+
+fragment JwtToken on JwtToken {
+  accessToken: access_token
+  expiresIn: expires_in
+  tokenType: token_type
 }
 """)
 
@@ -102,25 +115,27 @@ query GetCustomerChargecards($getCustomerByIdId: ID!) {
   getCustomerById(id: $getCustomerByIdId) {
     id
     cards {
-      id
-      externalId
-      internalId
-      contractId
-      roaming
-      state
-      type
-      roamingHomeChargingEnabled
-      roamingHubStatus
-      cardProvider {
-        name
-      }
-      customer {
-        id
-      }
-      transactionCustomer {
-        id
-      }
+      ...Card
     }
+  }
+}
+
+fragment Card on Card {
+  id
+  externalId
+  roaming
+  state
+  type
+  roamingHomeChargingEnabled
+  roamingHubStatus
+  cardProvider {
+    name
+  }
+  customer {
+    id
+  }
+  transactionCustomer {
+    id
   }
 }
 """)
@@ -128,6 +143,11 @@ query GetCustomerChargecards($getCustomerByIdId: ID!) {
 GET_CUSTOMER_CHARGE_STATIONS_QUERY = gql("""
 query GetCustomerChargeStations {
   getCustomerChargeStations {
+    ...ChargeStation
+  }
+}
+
+fragment ChargeStation on ChargeStation {
     id
     commId
     name
@@ -168,6 +188,18 @@ query GetCustomerChargeStations {
         time
       }
     }
+}
+""")
+
+GET_CHARGE_STATION_OVERVIEW_QUERY = gql("""
+query GetChargeStationOverview($getChargeStationByIdId: ID!) {
+    getChargeStationById(id: $getChargeStationByIdId) {
+      ...ChargeStationOverview
+    }
+}
+
+fragment ChargeStationOverview on ChargeStation {
+    id
     accessOptions {
       authorizationMode
       accessType
@@ -177,78 +209,57 @@ query GetCustomerChargeStations {
       hccEnabled
       hccTariff
     }
-  }
 }
 """)
 
 GET_CHARGE_STATION_DETAILS_QUERY = gql("""
 query GetChargeStationDetails($getChargeStationByIdId: ID!) {
   getChargeStationById(id: $getChargeStationByIdId) {
-    id
-    commId
-    name
-    channels {
-      id
-      evseId
-      channelNo
-      globalStatus
-      cableLock
-      soc
-      activeTariff {
-        energy
-        flat
-        time
-      }
-    }
-    location {
-      id
-      address
-      postalCode
-      city
-      countryDetails {
-        code
-        currency {
-          code
-        }
-      }
-    }
-    manufacturerType {
-      vendor
-      model
+    ...ChargeStationDetails
+  }
+}
+
+fragment ChargeStationDetails on ChargeStation {
+  id
+  name
+  location {
+    address
+    postalCode
+    city
+    countryDetails {
+      localName
     }
   }
 }
 """)
 
 GET_CHARGE_STATION_TRANSACTIONS_QUERY = gql("""
-query GetChargeStationTransactions($getChargeStationByIdId: ID!, $txFilters: TransactionFilter, $txSort: TransactionSort) {
-  getChargeStationById(id: $getChargeStationByIdId) {
-    id
-    transactions(filters: $txFilters, sort: $txSort) {
-      items {
-        id
-        status
-        globalStatus
-        type
-        startDate
-        lastUpdateDate
-        totalDuration
-        totalEnergy
-        totalIdleTime
-        homeCharging
-        cardSnapshot {
-          externalId
-          internalId
-          contractId
-          type
+query GetChargingHistory($getTransactionsFilters: TransactionFilter, $sort: TransactionSort) {
+  getTransactions(filters: $getTransactionsFilters, sort: $sort) {
+    hasNext
+    items {
+      id
+      startDate
+      totalDuration
+      totalEnergy
+      cardSnapshot {
+        externalId
+      }
+      locationSnapshot {
+        chargeStationName
+        evse {
+          id
         }
-        transactionPrices {
-          totalCost
-          type
-          vatPercentage
-          currency {
-            code
-          }
+      }
+      transactionPrices {
+        totalCost
+        type
+        vatPercentage
+        currency {
+          code
+        }
+        vatCountry {
+          code
         }
       }
     }
@@ -259,6 +270,12 @@ query GetChargeStationTransactions($getChargeStationByIdId: ID!, $txFilters: Tra
 LMS_ACTIVE_TRANSACTION_QUERY = gql("""
 query LmsActiveTransaction {
   lmsActiveTransaction {
+    ...ActiveTransaction
+  }
+}
+
+fragment ActiveTransaction on Transaction {
+    transactionId
     updateDate
     address
     zipCode
@@ -276,7 +293,6 @@ query LmsActiveTransaction {
     }
     tariffId
     channelVisibleId
-  }
 }
 """)
 
@@ -383,6 +399,24 @@ class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
             if upload_files:
                 close_files(list(self.files.values()))
 
+    def _prepare_request(
+        self,
+        request: Any,
+        extra_args: dict[str, Any] | None = None,
+        upload_files: bool = False,
+    ) -> dict[str, Any]:
+        """Serialize named operations and empty variables like Apollo HttpLink."""
+        request_args = super()._prepare_request(request, extra_args, upload_files)
+        payload = request_args.get("json")
+        if isinstance(request, GraphQLRequest) and isinstance(payload, dict):
+            operation_name = request.operation_name or _operation_name(
+                request.document
+            )
+            if operation_name:
+                payload["operationName"] = operation_name
+            payload.setdefault("variables", request.variable_values or {})
+        return request_args
+
 
 class FiftyFiveApiClient:
     """Strongly typed GraphQL API client for 50five using gql."""
@@ -468,15 +502,17 @@ class FiftyFiveApiClient:
 
         return False
 
-    def _get_headers(self) -> dict[str, str]:
+    def _get_headers(self, *, authenticated: bool = True) -> dict[str, str]:
         """Construct mobile app emulation headers."""
         headers = {
-            "User-Agent": "50five/1.0.0 (Android; GraphQL)",
+            "User-Agent": "okhttp/4.9.2",
+            "accept": "*/*",
+            "content-type": "application/json",
             "apollographql-client-name": "com.plugz.app50five",
             "apollographql-client-version": "1.0.0",
             "plugz-application-id": self.device_id,
         }
-        if self._access_token:
+        if authenticated and self._access_token:
             headers["authorization"] = f"Bearer {self._access_token}"
         return headers
 
@@ -504,12 +540,7 @@ class FiftyFiveApiClient:
                 self.device_id,
             )
 
-            login_headers = {
-                "User-Agent": "50five/1.0.0 (Android; GraphQL)",
-                "apollographql-client-name": "com.plugz.app50five",
-                "apollographql-client-version": "1.0.0",
-                "plugz-application-id": self.device_id,
-            }
+            login_headers = self._get_headers(authenticated=False)
 
             login_transport = HomeAssistantAIOHTTPTransport(
                 url=self.base_url,
@@ -534,11 +565,12 @@ class FiftyFiveApiClient:
                     GraphQLRequest(
                         LOGIN_MUTATION,
                         variable_values=login_variables,
+                        operation_name=_operation_name(LOGIN_MUTATION),
                     )
                 )
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("GraphQL response: %s", censor(result))
-                login_dict = result.get("login")
+                login_dict = result.get("loginFiftyFive")
                 if not login_dict or not isinstance(login_dict, dict):
                     raise FiftyFiveAuthError("Invalid username or password")
 
@@ -686,6 +718,7 @@ class FiftyFiveApiClient:
                 GraphQLRequest(
                     document,
                     variable_values=variables or {},
+                    operation_name=_operation_name(document),
                 )
             )
             if _LOGGER.isEnabledFor(logging.DEBUG):
@@ -728,6 +761,27 @@ class FiftyFiveApiClient:
         vat_multiplier = await self.get_vat_multiplier()
         data = await self._execute_query(GET_CUSTOMER_CHARGE_STATIONS_QUERY)
         raw_stations = data.get("getCustomerChargeStations") or []
+        stations_by_id = {
+            str(station["id"]): station
+            for station in raw_stations
+            if isinstance(station, dict) and station.get("id") is not None
+        }
+        if stations_by_id:
+            overview_results = await asyncio.gather(
+                *(
+                    self._execute_query(
+                        GET_CHARGE_STATION_OVERVIEW_QUERY,
+                        {"getChargeStationByIdId": station_id},
+                    )
+                    for station_id in stations_by_id
+                )
+            )
+            for station_id, result in zip(
+                stations_by_id, overview_results, strict=True
+            ):
+                overview = result.get("getChargeStationById")
+                if isinstance(overview, dict):
+                    stations_by_id[station_id].update(overview)
         return [
             ChargeStation.from_dict(st, vat_multiplier=vat_multiplier)
             for st in raw_stations
@@ -757,22 +811,22 @@ class FiftyFiveApiClient:
         date_to = now.strftime("%Y-%m-%d")
 
         variables = {
-            "getChargeStationByIdId": str(charge_station_id),
-            "txFilters": {
+            "getTransactionsFilters": {
                 "dateFrom": date_from,
                 "dateTo": date_to,
-                "itemsPerPage": 5,
+                "itemsPerPage": 30,
+                "page": 1,
+                "chargeStation": {"id": str(charge_station_id)},
             },
-            "txSort": {"startDate": "desc"},
+            "sort": {"startDate": "DESC"},
         }
         data = await self._execute_query(
             GET_CHARGE_STATION_TRANSACTIONS_QUERY, variables
         )
-        station_data = data.get("getChargeStationById")
-        if not station_data or not isinstance(station_data, dict):
+        tx_data = data.get("getTransactions")
+        if not tx_data or not isinstance(tx_data, dict):
             return []
-        tx_container = station_data.get("transactions") or {}
-        raw_txs = tx_container.get("items") or []
+        raw_txs = tx_data.get("items") or []
         return [
             tx
             for tx in (

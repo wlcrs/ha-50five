@@ -52,7 +52,7 @@ MOCK_CARD_STEP_INPUT = {
 }
 
 MOCK_LOGIN_RESPONSE = {
-    "login": {
+    "loginFiftyFive": {
         "accessToken": MOCK_ACCESS_TOKEN,
         "expiresIn": 86400,
         "tokenType": "Bearer",

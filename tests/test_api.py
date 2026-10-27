@@ -36,6 +36,7 @@ from .const import (
     MOCK_DEVICE_ID,
     MOCK_LOGIN_RESPONSE,
     MOCK_PASSWORD,
+    MOCK_MULTI_STATION_ID,
     MOCK_STATION_ID,
     MOCK_USERNAME,
 )
@@ -108,9 +109,41 @@ def test_api_client_headers() -> None:
         access_token="test_token",
     )
     headers = client._get_headers()
+    assert headers["User-Agent"] == "okhttp/4.9.2"
+    assert headers["accept"] == "*/*"
+    assert headers["content-type"] == "application/json"
     assert headers["apollographql-client-name"] == "com.plugz.app50five"
     assert headers["plugz-application-id"] == MOCK_DEVICE_ID
+    assert "authorization" not in client._get_headers(authenticated=False)
+    client._access_token = None
+    assert "authorization" not in client._get_headers()
     assert headers["authorization"] == "Bearer test_token"
+
+
+def test_app_graphql_operation_names() -> None:
+    """Test that overlapping GraphQL operations use the mobile app's names."""
+    assert "mutation LoginFiftyFive" in api_mod._query_text(api_mod.LOGIN_MUTATION)
+    assert "loginFiftyFive(email:" in api_mod._query_text(api_mod.LOGIN_MUTATION)
+    assert "query GetCustomerChargeStations" in api_mod._query_text(
+        api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY
+    )
+    assert "query GetChargeStationOverview" in api_mod._query_text(
+        api_mod.GET_CHARGE_STATION_OVERVIEW_QUERY
+    )
+    assert "query GetChargingHistory" in api_mod._query_text(
+        api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
+    )
+
+
+def test_transport_serializes_app_request_envelope() -> None:
+    """Test Apollo-compatible operationName and variables serialization."""
+    transport = HomeAssistantAIOHTTPTransport(url="https://example.com/graphql")
+    request = api_mod.GraphQLRequest(api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY)
+
+    payload = transport._prepare_request(request)["json"]
+
+    assert payload["operationName"] == "GetCustomerChargeStations"
+    assert payload["variables"] == {}
 
 
 async def test_authenticate_success() -> None:
@@ -143,7 +176,7 @@ async def test_authenticate_expiration_fallbacks() -> None:
     # 1. Fallback to expiresIn
     with patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec:
         mock_exec.return_value = {
-            "login": {"accessToken": token_no_exp, "expiresIn": 3600}
+            "loginFiftyFive": {"accessToken": token_no_exp, "expiresIn": 3600}
         }
         assert await client.authenticate() is True
         assert client.token_expires_at is not None
@@ -151,7 +184,7 @@ async def test_authenticate_expiration_fallbacks() -> None:
     # 2. Fallback to default 24h
     with patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec:
         mock_exec.return_value = {
-            "login": {"accessToken": token_no_exp, "expiresIn": None}
+            "loginFiftyFive": {"accessToken": token_no_exp, "expiresIn": None}
         }
         assert await client.authenticate() is True
         assert client.token_expires_at is not None
@@ -183,13 +216,13 @@ async def test_authenticate_failures() -> None:
 
     # 1. Invalid response payload
     with patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec:
-        mock_exec.return_value = {"login": None}
+        mock_exec.return_value = {"loginFiftyFive": None}
         with pytest.raises(FiftyFiveAuthError):
             await client.authenticate()
 
     # 2. Login response missing access token
     with patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec:
-        mock_exec.return_value = {"login": {"accessToken": ""}}
+        mock_exec.return_value = {"loginFiftyFive": {"accessToken": ""}}
         with pytest.raises(FiftyFiveAuthError):
             await client.authenticate()
 
@@ -327,11 +360,67 @@ async def test_api_query_methods() -> None:
 
     # 1. get_customer_charge_stations
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE
+        base_response = {
+            "getCustomerChargeStations": [
+                {
+                    key: value
+                    for key, value in station.items()
+                    if key not in {"accessOptions", "homeChargingCompensation"}
+                }
+                for station in MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE[
+                    "getCustomerChargeStations"
+                ]
+            ]
+        }
+        mock_query.side_effect = [
+            base_response,
+            {
+                "getChargeStationById": {
+                    "id": MOCK_STATION_ID,
+                    "accessOptions": {
+                        "authorizationMode": "RFID",
+                        "accessType": "PRIVATE",
+                        "publishedOnMap": False,
+                    },
+                    "homeChargingCompensation": {
+                        "hccEnabled": True,
+                        "hccTariff": 0.30,
+                    },
+                }
+            },
+            {
+                "getChargeStationById": {
+                    "id": MOCK_MULTI_STATION_ID,
+                    "accessOptions": {
+                        "authorizationMode": "RFID",
+                        "accessType": "PUBLIC_PAID",
+                        "publishedOnMap": True,
+                    },
+                    "homeChargingCompensation": {
+                        "hccEnabled": False,
+                        "hccTariff": None,
+                    },
+                }
+            },
+        ]
         stations = await client.get_customer_charge_stations()
         assert len(stations) == 2
         assert stations[0].id == MOCK_STATION_ID
-        mock_query.assert_awaited_once_with(api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY)
+        assert stations[0].access_options.authorization_mode == "RFID"
+        assert stations[0].hcc.hcc_enabled is True
+        assert mock_query.await_count == 3
+        assert mock_query.await_args_list[0].args == (
+            api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY,
+        )
+        overview_calls = mock_query.await_args_list[1:]
+        assert {
+            call.args[1]["getChargeStationByIdId"]
+            for call in overview_calls
+        } == {MOCK_STATION_ID, MOCK_MULTI_STATION_ID}
+        assert all(
+            call.args[0] == api_mod.GET_CHARGE_STATION_OVERVIEW_QUERY
+            for call in overview_calls
+        )
 
     # 2. get_charge_station_details
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
@@ -360,23 +449,26 @@ async def test_api_query_methods() -> None:
     # 5. get_charge_station_transactions
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
         mock_query.return_value = {
-            "getChargeStationById": {
-                "id": MOCK_STATION_ID,
-                "transactions": {
-                    "items": [
-                        {
-                            "id": "tx_test_1",
-                            "status": "COMPLETED",
-                            "totalEnergy": 15.0,
-                        }
-                    ]
-                },
+            "getTransactions": {
+                "items": [
+                    {
+                        "id": "tx_test_1",
+                        "status": "COMPLETED",
+                        "totalEnergy": 15.0,
+                    }
+                ]
             }
         }
         txs = await client.get_charge_station_transactions(MOCK_STATION_ID)
         assert len(txs) == 1
         assert txs[0].id == "tx_test_1"
         assert txs[0].total_energy == 15.0
+        query, variables = mock_query.await_args.args
+        assert query == api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
+        assert variables["getTransactionsFilters"]["chargeStation"] == {
+            "id": MOCK_STATION_ID
+        }
+        assert variables["sort"] == {"startDate": "DESC"}
 
 
 async def test_get_charge_cards_edge_cases() -> None:
