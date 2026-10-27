@@ -818,7 +818,7 @@ class FiftyFiveApiClient:
                 "page": 1,
                 "chargeStation": {"id": str(charge_station_id)},
             },
-            "sort": {"startDate": "DESC"},
+            "sort": {"startDate": "desc"},
         }
         data = await self._execute_query(
             GET_CHARGE_STATION_TRANSACTIONS_QUERY, variables
