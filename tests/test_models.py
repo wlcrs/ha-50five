@@ -63,7 +63,6 @@ def test_active_transaction_model() -> None:
     assert tx is not None
     assert tx.energy_delivered == 15.5
     assert tx.duration_charging == 7200.0
-    assert tx.duration_hours == 2.0
     assert tx.total_amount == 5.42
     assert tx.vat == 21.0
     assert len(tx.price_elements) == 1
@@ -96,7 +95,7 @@ def test_completed_transaction_model() -> None:
     tx = CompletedTransaction.from_dict(data)
     assert tx is not None
     assert tx.id == "tx_100"
-    assert tx.duration_hours == 2.5
+    assert tx.total_duration == 2.5
     assert tx.total_energy == 22.0
     assert tx.home_charging is True
     assert tx.card_id == "NL-50F-111"

@@ -96,11 +96,6 @@ class ActiveTransaction:
     tariff_id: str | None = None
     channel_visible_id: int | str | None = None
 
-    @property
-    def duration_hours(self) -> float:
-        """Duration in decimal hours."""
-        return round(self.duration_charging / 3600.0, 2)
-
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> ActiveTransaction | None:
         """Parse dictionary to ActiveTransaction."""
@@ -142,7 +137,7 @@ class CompletedTransaction:
     type: str | None = None
     start_date: str | None = None
     last_update_date: str | None = None
-    total_duration: float = 0.0  # seconds
+    total_duration: float = 0.0  # hours
     total_energy: float = 0.0  # kWh
     total_idle_time: float = 0.0
     home_charging: bool = False
@@ -150,10 +145,6 @@ class CompletedTransaction:
     total_cost: float | None = None
     currency: str = "EUR"
 
-    @property
-    def duration_hours(self) -> float:
-        """Duration in decimal hours."""
-        return round(self.total_duration / 3600.0, 2)
 
     @property
     def start_datetime(self) -> datetime | None:
@@ -209,7 +200,7 @@ class CompletedTransaction:
             type=data.get("type"),
             start_date=data.get("startDate"),
             last_update_date=data.get("lastUpdateDate"),
-            total_duration=float(data.get("totalDuration") or 0.0),
+            total_duration=float(data.get("totalDuration") or 0.0) / 3600.0,
             total_energy=float(data.get("totalEnergy") or 0.0),
             total_idle_time=float(data.get("totalIdleTime") or 0.0),
             home_charging=bool(data.get("homeCharging", False)),

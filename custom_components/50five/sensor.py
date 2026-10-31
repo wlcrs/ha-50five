@@ -160,8 +160,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         key="last_transaction_duration",
         translation_key="last_transaction_duration",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.HOURS,
         icon="mdi:timer-sand",
         value_fn=lambda data, _ch: (
             data.last_transaction.total_duration if data.last_transaction else None

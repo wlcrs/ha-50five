@@ -63,6 +63,13 @@ async def test_sensors_single_channel_station(
     assert last_energy_state is not None
     assert float(last_energy_state.state) == 28.5
 
+    last_duration_state = hass.states.get(
+        "sensor.home_charger_single_last_session_duration"
+    )
+    assert last_duration_state is not None
+    assert float(last_duration_state.state) == 4.5
+    assert last_duration_state.attributes["unit_of_measurement"] == "h"
+
     last_cost_state = hass.states.get("sensor.home_charger_single_last_session_cost")
     assert last_cost_state is not None
     assert float(last_cost_state.state) == 9.98
