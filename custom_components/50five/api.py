@@ -579,7 +579,10 @@ class FiftyFiveApiClient:
                 )
                 result = LoginMutationResponse.model_validate(raw_result)
                 if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug("GraphQL response: %s", censor(result))
+                    _LOGGER.debug(
+                        "GraphQL response: %s",
+                        censor(raw_result, response_model=LoginMutationResponse),
+                    )
                 login_result = result.login_fifty_five
                 if not login_result:
                     raise FiftyFiveAuthError("Invalid username or password")
@@ -736,7 +739,7 @@ class FiftyFiveApiClient:
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
                     "GraphQL response: %s",
-                    censor(result),
+                    censor(raw_result, response_model=response_model),
                 )
             return result
         except (TransportServerError, TransportError, Exception) as err:
