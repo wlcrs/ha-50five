@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 from datetime import timedelta
 
@@ -14,7 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import FiftyFiveApiClient
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .exceptions import FiftyFiveAuthError, FiftyFiveError
-from .models import ActiveTransaction, ChargeStation, StationData
+from .models import ActiveTransaction, ChargeStation, StationData, TransactionCollection
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +54,7 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
     async def _async_update_data(self) -> dict[str, StationData]:
         """Fetch charge stations and active transaction data from GraphQL API."""
         try:
+            vat_multiplier = await self.client.get_vat_multiplier()
             # Query all customer charge stations (returns list[ChargeStation])
             stations = await self.client.get_customer_charge_stations()
             self.charge_stations = stations or []
@@ -77,18 +77,22 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 if not station_id:
                     continue
 
-                channels_by_num = {ch.channel_no: ch for ch in station.channels}
+                channels_by_num = {
+                    ch.channel_no: ch for ch in station.channels or []
+                }
 
                 # Resiliently fetch completed transactions per station if not already attached
                 station_to_store = station
-                if not station.transactions:
+                if not station.transactions or not station.transactions.items:
                     try:
                         txs = await self.client.get_charge_station_transactions(
                             station_id
                         )
                         if txs:
-                            station_to_store = dataclasses.replace(
-                                station, transactions=txs
+                            station_to_store = station.model_copy(
+                                update={
+                                    "transactions": TransactionCollection(items=txs)
+                                }
                             )
                     except FiftyFiveError as tx_err:
                         _LOGGER.warning(
@@ -107,6 +111,7 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                     station=station_to_store,
                     channels=channels_by_num,
                     active_transaction=active_transaction,
+                    vat_multiplier=vat_multiplier,
                 )
 
             return data

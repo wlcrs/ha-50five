@@ -3,6 +3,7 @@
 import importlib
 from unittest.mock import AsyncMock
 
+import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -69,6 +70,13 @@ async def test_sensors_single_channel_station(
     assert last_duration_state is not None
     assert float(last_duration_state.state) == 4.5
     assert last_duration_state.attributes["unit_of_measurement"] == "h"
+
+    last_idle_time_state = hass.states.get(
+        "sensor.home_charger_single_last_session_idle_time"
+    )
+    assert last_idle_time_state is not None
+    assert float(last_idle_time_state.state) == pytest.approx(5 / 60)
+    assert last_idle_time_state.attributes["unit_of_measurement"] == "h"
 
     last_cost_state = hass.states.get("sensor.home_charger_single_last_session_cost")
     assert last_cost_state is not None

@@ -10,7 +10,7 @@ import logging
 import uuid
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TypeVar
 
 import aiohttp
 from gql import Client, gql
@@ -27,6 +27,7 @@ from gql.transport.exceptions import (
     TransportServerError,
 )
 from graphql import get_operation_ast, print_ast
+from pydantic import BaseModel
 
 from .const import DEFAULT_BASE_URL, DEFAULT_VAT_MULTIPLIER, VAT_MULTIPLIERS
 from .exceptions import (
@@ -40,11 +41,23 @@ from .models import (
     ChargeCard,
     ChargeStation,
     CompletedTransaction,
-    LoginResult,
+    GetChargeStationByIdResponse,
+    GetCustomerByIdResponse,
+    GetCustomerChargeCardsResponse,
+    GetCustomerChargeStationsResponse,
+    HardResetResponse,
+    LmsActiveTransactionResponse,
+    LoginMutationResponse,
+    ResetParametersCacheResponse,
+    SoftResetResponse,
+    StartTransactionResponse,
+    StopTransactionResponse,
+    UnlockConnectorResponse,
 )
 from .redact import censor
 
 _LOGGER = logging.getLogger(__name__)
+_ResponseT = TypeVar("_ResponseT", bound=BaseModel)
 
 
 def _extract_jwt_claims(token: str) -> dict[str, Any]:
@@ -188,27 +201,15 @@ fragment ChargeStation on ChargeStation {
         time
       }
     }
-}
-""")
-
-GET_CHARGE_STATION_OVERVIEW_QUERY = gql("""
-query GetChargeStationOverview($getChargeStationByIdId: ID!) {
-    getChargeStationById(id: $getChargeStationByIdId) {
-      ...ChargeStationOverview
-    }
-}
-
-fragment ChargeStationOverview on ChargeStation {
-    id
-    accessOptions {
-      authorizationMode
-      accessType
-      publishedOnMap
-    }
-    homeChargingCompensation {
-      hccEnabled
-      hccTariff
-    }
+        accessOptions {
+            authorizationMode
+            accessType
+            publishedOnMap
+        }
+        homeChargingCompensation {
+            hccEnabled
+            hccTariff
+        }
 }
 """)
 
@@ -234,32 +235,40 @@ fragment ChargeStationDetails on ChargeStation {
 """)
 
 GET_CHARGE_STATION_TRANSACTIONS_QUERY = gql("""
-query GetChargingHistory($getTransactionsFilters: TransactionFilter, $sort: TransactionSort) {
-  getTransactions(filters: $getTransactionsFilters, sort: $sort) {
-    hasNext
-    items {
-      id
-      startDate
-      totalDuration
-      totalEnergy
-      cardSnapshot {
-        externalId
-      }
-      locationSnapshot {
-        chargeStationName
-        evse {
-          id
-        }
-      }
-      transactionPrices {
-        totalCost
-        type
-        vatPercentage
-        currency {
-          code
-        }
-        vatCountry {
-          code
+query GetChargeStationTransactions($getChargeStationByIdId: ID!, $txFilters: TransactionFilter, $txSort: TransactionSort) {
+    getChargeStationById(id: $getChargeStationByIdId) {
+        id
+        transactions(filters: $txFilters, sort: $txSort) {
+            items {
+                id
+                status
+                globalStatus
+                type
+                startDate
+                lastUpdateDate
+                totalDuration
+                totalEnergy
+                totalIdleTime
+                homeCharging
+                cardSnapshot {
+                    externalId
+                    internalId
+                    contractId
+                    type
+                }
+                locationSnapshot {
+                    chargeStationName
+                    evse {
+                        id
+                    }
+                }
+                transactionPrices {
+                    totalCost
+                    type
+                    vatPercentage
+                    currency {
+                        code
+                    }
         }
       }
     }
@@ -561,20 +570,20 @@ class FiftyFiveApiClient:
                 )
 
             try:
-                result = await login_client.execute_async(
+                raw_result = await login_client.execute_async(
                     GraphQLRequest(
                         LOGIN_MUTATION,
                         variable_values=login_variables,
                         operation_name=_operation_name(LOGIN_MUTATION),
                     )
                 )
+                result = LoginMutationResponse.model_validate(raw_result)
                 if _LOGGER.isEnabledFor(logging.DEBUG):
                     _LOGGER.debug("GraphQL response: %s", censor(result))
-                login_dict = result.get("loginFiftyFive")
-                if not login_dict or not isinstance(login_dict, dict):
+                login_result = result.login_fifty_five
+                if not login_result:
                     raise FiftyFiveAuthError("Invalid username or password")
 
-                login_result = LoginResult.from_dict(login_dict)
                 if not login_result.access_token:
                     raise FiftyFiveAuthError("Login response missing access token")
 
@@ -664,23 +673,23 @@ class FiftyFiveApiClient:
 
         if self.customer_id:
             try:
-                data = await self._execute_query(
+                response = await self._execute_query(
                     GET_CUSTOMER_BY_ID_QUERY,
                     {"getCustomerByIdId": str(self.customer_id)},
+                    response_model=GetCustomerByIdResponse,
                 )
-                cust = data.get("getCustomerById")
-                if cust and isinstance(cust, dict):
-                    cat = cust.get("providerCategory")
-                    if cat:
-                        self._vat_multiplier = VAT_MULTIPLIERS.get(
-                            str(cat).strip(), DEFAULT_VAT_MULTIPLIER
-                        )
-                        _LOGGER.debug(
-                            "Resolved customer providerCategory %s to VAT multiplier %s",
-                            cat,
-                            self._vat_multiplier,
-                        )
-                        return self._vat_multiplier
+                customer = response.get_customer_by_id
+                if customer and customer.provider_category:
+                    category = customer.provider_category.strip()
+                    self._vat_multiplier = VAT_MULTIPLIERS.get(
+                        category, DEFAULT_VAT_MULTIPLIER
+                    )
+                    _LOGGER.debug(
+                        "Resolved customer providerCategory %s to VAT multiplier %s",
+                        category,
+                        self._vat_multiplier,
+                    )
+                    return self._vat_multiplier
             except FiftyFiveError as err:
                 _LOGGER.warning(
                     "Could not fetch customer providerCategory for VAT calculation: %s",
@@ -699,7 +708,9 @@ class FiftyFiveApiClient:
         document: Any,
         variables: dict[str, Any] | None = None,
         _retry_count: int = 0,
-    ) -> dict[str, Any]:
+        *,
+        response_model: type[_ResponseT],
+    ) -> _ResponseT:
         """Execute a GraphQL query/mutation with automatic proactive token refresh."""
         if not self._access_token or self.is_token_expired():
             _LOGGER.debug("Access token missing or expired, acquiring fresh token...")
@@ -714,15 +725,19 @@ class FiftyFiveApiClient:
             )
 
         try:
-            result = await self._client.execute_async(
+            raw_result = await self._client.execute_async(
                 GraphQLRequest(
                     document,
                     variable_values=variables or {},
                     operation_name=_operation_name(document),
                 )
             )
+            result = response_model.model_validate(raw_result)
             if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("GraphQL response: %s", censor(result))
+                _LOGGER.debug(
+                    "GraphQL response: %s",
+                    censor(result),
+                )
             return result
         except (TransportServerError, TransportError, Exception) as err:
             err_str = str(err).lower()
@@ -738,7 +753,10 @@ class FiftyFiveApiClient:
                 self._token_expires_at = None
                 if await self.authenticate():
                     return await self._execute_query(
-                        document, variables, _retry_count + 1
+                        document,
+                        variables,
+                        _retry_count + 1,
+                        response_model=response_model,
                     )
                 raise FiftyFiveAuthError(
                     "Re-authentication failed after token expiry"
@@ -758,49 +776,25 @@ class FiftyFiveApiClient:
         self, days_back: int = 30
     ) -> list[ChargeStation]:
         """Retrieve customer charge stations."""
-        vat_multiplier = await self.get_vat_multiplier()
-        data = await self._execute_query(GET_CUSTOMER_CHARGE_STATIONS_QUERY)
-        raw_stations = data.get("getCustomerChargeStations") or []
-        stations_by_id = {
-            str(station["id"]): station
-            for station in raw_stations
-            if isinstance(station, dict) and station.get("id") is not None
-        }
-        if stations_by_id:
-            overview_results = await asyncio.gather(
-                *(
-                    self._execute_query(
-                        GET_CHARGE_STATION_OVERVIEW_QUERY,
-                        {"getChargeStationByIdId": station_id},
-                    )
-                    for station_id in stations_by_id
-                )
-            )
-            for station_id, result in zip(
-                stations_by_id, overview_results, strict=True
-            ):
-                overview = result.get("getChargeStationById")
-                if isinstance(overview, dict):
-                    stations_by_id[station_id].update(overview)
-        return [
-            ChargeStation.from_dict(st, vat_multiplier=vat_multiplier)
-            for st in raw_stations
-            if isinstance(st, dict)
-        ]
+        response = await self._execute_query(
+            GET_CUSTOMER_CHARGE_STATIONS_QUERY,
+            response_model=GetCustomerChargeStationsResponse,
+        )
+        return response.get_customer_charge_stations or []
 
     async def get_charge_station_details(
         self, charge_station_id: str, days_back: int = 30
     ) -> ChargeStation | None:
         """Retrieve detailed charge station information."""
-        vat_multiplier = await self.get_vat_multiplier()
         variables = {
             "getChargeStationByIdId": str(charge_station_id),
         }
-        data = await self._execute_query(GET_CHARGE_STATION_DETAILS_QUERY, variables)
-        station_data = data.get("getChargeStationById")
-        if station_data and isinstance(station_data, dict):
-            return ChargeStation.from_dict(station_data, vat_multiplier=vat_multiplier)
-        return None
+        response = await self._execute_query(
+            GET_CHARGE_STATION_DETAILS_QUERY,
+            variables,
+            response_model=GetChargeStationByIdResponse,
+        )
+        return response.get_charge_station_by_id
 
     async def get_charge_station_transactions(
         self, charge_station_id: str, days_back: int = 30
@@ -811,39 +805,33 @@ class FiftyFiveApiClient:
         date_to = now.strftime("%Y-%m-%d")
 
         variables = {
-            "getTransactionsFilters": {
+            "getChargeStationByIdId": str(charge_station_id),
+            "txFilters": {
                 "dateFrom": date_from,
                 "dateTo": date_to,
-                "itemsPerPage": 30,
-                "page": 1,
-                "chargeStation": {"id": str(charge_station_id)},
+                "itemsPerPage": 5,
             },
-            "sort": {"startDate": "desc"},
+            "txSort": {"startDate": "desc"},
         }
-        data = await self._execute_query(
-            GET_CHARGE_STATION_TRANSACTIONS_QUERY, variables
+        response = await self._execute_query(
+            GET_CHARGE_STATION_TRANSACTIONS_QUERY,
+            variables,
+            response_model=GetChargeStationByIdResponse,
         )
-        tx_data = data.get("getTransactions")
-        if not tx_data or not isinstance(tx_data, dict):
-            return []
-        raw_txs = tx_data.get("items") or []
-        return [
-            tx
-            for tx in (
-                CompletedTransaction.from_dict(t)
-                for t in raw_txs
-                if isinstance(t, dict)
-            )
-            if tx is not None
-        ]
+        station = response.get_charge_station_by_id
+        return (
+            station.transactions.items
+            if station and station.transactions and station.transactions.items
+            else []
+        )
 
     async def get_active_transaction(self) -> ActiveTransaction | None:
         """Retrieve active charging session telemetry as strongly typed model."""
-        data = await self._execute_query(LMS_ACTIVE_TRANSACTION_QUERY)
-        tx_data = data.get("lmsActiveTransaction")
-        if tx_data and isinstance(tx_data, dict):
-            return ActiveTransaction.from_dict(tx_data)
-        return None
+        response = await self._execute_query(
+            LMS_ACTIVE_TRANSACTION_QUERY,
+            response_model=LmsActiveTransactionResponse,
+        )
+        return response.lms_active_transaction
 
     async def get_charge_cards(self) -> list[ChargeCard]:
         """Retrieve customer charge cards."""
@@ -854,17 +842,13 @@ class FiftyFiveApiClient:
             _LOGGER.warning("No customer ID available to fetch charge cards")
             return []
 
-        data = await self._execute_query(
+        response = await self._execute_query(
             GET_CUSTOMER_CHARGE_CARDS_QUERY,
             {"getCustomerByIdId": str(self.customer_id)},
+            response_model=GetCustomerChargeCardsResponse,
         )
-        cust = data.get("getCustomerById")
-        if not cust or not isinstance(cust, dict):
-            return []
-
-        raw_cards = cust.get("cards") or []
-        cards = [ChargeCard.from_dict(c) for c in raw_cards if isinstance(c, dict)]
-        return [c for c in cards if c is not None]
+        customer = response.get_customer_by_id
+        return customer.cards or [] if customer else []
 
     async def get_tokens(self) -> list[ChargeCard]:
         """Retrieve customer charge cards / tokens (alias for get_charge_cards)."""
@@ -884,8 +868,12 @@ class FiftyFiveApiClient:
         if card:
             variables["card"] = str(card)
 
-        res = await self._execute_query(START_TRANSACTION_MUTATION, variables)
-        return bool(res.get("startTransaction", True))
+        response = await self._execute_query(
+            START_TRANSACTION_MUTATION,
+            variables,
+            response_model=StartTransactionResponse,
+        )
+        return response.start_transaction is not False
 
     async def stop_charging(self, charge_station_id: str, channel_id: str) -> bool:
         """Stop a charging transaction on a specific channel."""
@@ -893,8 +881,12 @@ class FiftyFiveApiClient:
             "chargeStationId": str(charge_station_id),
             "channelId": str(channel_id),
         }
-        res = await self._execute_query(STOP_TRANSACTION_MUTATION, variables)
-        return bool(res.get("stopTransaction", True))
+        response = await self._execute_query(
+            STOP_TRANSACTION_MUTATION,
+            variables,
+            response_model=StopTransactionResponse,
+        )
+        return response.stop_transaction is not False
 
     async def unlock_connector(self, charge_station_id: str, channel_id: str) -> bool:
         """Unlock the connector on a charging station channel."""
@@ -902,29 +894,36 @@ class FiftyFiveApiClient:
             "chargeStationId": str(charge_station_id),
             "channelId": str(channel_id),
         }
-        res = await self._execute_query(UNLOCK_CONNECTOR_MUTATION, variables)
-        return bool(res.get("unlockConnector", True))
+        response = await self._execute_query(
+            UNLOCK_CONNECTOR_MUTATION,
+            variables,
+            response_model=UnlockConnectorResponse,
+        )
+        return response.unlock_connector is not False
 
     async def soft_reset(self, charge_station_id: str) -> bool:
         """Perform a soft reset on the charging station."""
-        res = await self._execute_query(
+        response = await self._execute_query(
             SOFT_RESET_MUTATION,
             {"chargeStationId": str(charge_station_id)},
+            response_model=SoftResetResponse,
         )
-        return bool(res.get("softReset", True))
+        return response.soft_reset is not False
 
     async def hard_reset(self, charge_station_id: str) -> bool:
         """Perform a hard reset on the charging station."""
-        res = await self._execute_query(
+        response = await self._execute_query(
             HARD_RESET_MUTATION,
             {"chargeStationId": str(charge_station_id)},
+            response_model=HardResetResponse,
         )
-        return bool(res.get("hardReset", True))
+        return response.hard_reset is not False
 
     async def reset_parameters_cache(self, charge_station_id: str) -> bool:
         """Reset the cached parameters for the charging station."""
-        res = await self._execute_query(
+        response = await self._execute_query(
             RESET_CACHE_MUTATION,
             {"chargeStationId": str(charge_station_id)},
+            response_model=ResetParametersCacheResponse,
         )
-        return bool(res.get("resetChargeStationParametersCache", True))
+        return response.reset_charge_station_parameters_cache is not False

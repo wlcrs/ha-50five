@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -54,7 +53,7 @@ async def async_get_config_entry_diagnostics(
 
     if coordinator.data:
         data["stations"] = {
-            mask_value(station_id): censor(dataclasses.asdict(station_data))
+            mask_value(station_id): censor(station_data)
             for station_id, station_data in coordinator.data.items()
         }
 

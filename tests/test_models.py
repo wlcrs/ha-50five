@@ -3,11 +3,15 @@
 import importlib
 from datetime import UTC, datetime
 
+import pytest
+from pydantic import ValidationError
+
 models = importlib.import_module("custom_components.50five.models")
 
 AccessOptions = models.AccessOptions
 AccessType = models.AccessType
 ActiveTransaction = models.ActiveTransaction
+ChannelGlobalStatus = models.ChannelGlobalStatus
 ChargeCard = models.ChargeCard
 ChargeStation = models.ChargeStation
 ChargeStationChannel = models.ChargeStationChannel
@@ -23,30 +27,39 @@ StationData = models.StationData
 
 
 def test_global_status_enum() -> None:
-    """Test GlobalStatus enum parsing."""
-    assert GlobalStatus.from_str("AVAILABLE") == GlobalStatus.AVAILABLE
-    assert GlobalStatus.from_str("charging") == GlobalStatus.CHARGING
-    assert GlobalStatus.from_str("SUSPENDED_EV") == GlobalStatus.SUSPENDED_EV
-    assert GlobalStatus.from_str("non_existent_status") == GlobalStatus.UNKNOWN
-    assert GlobalStatus.from_str(None) == GlobalStatus.UNKNOWN
+    """Test schema enum validation and Home Assistant status mapping."""
+    assert GlobalStatus("available") == GlobalStatus.AVAILABLE
+
+    channel = ChargeStationChannel.model_validate({"globalStatus": "Charging"})
+    assert channel.global_status == ChannelGlobalStatus.CHARGING
+    assert channel.status == GlobalStatus.CHARGING
+
+    faulty = ChargeStationChannel.model_validate({"globalStatus": "Faulty"})
+    assert faulty.status == GlobalStatus.FAULTED
+
+    no_communication = ChargeStationChannel.model_validate(
+        {"globalStatus": "NoCommunication"}
+    )
+    assert no_communication.status == GlobalStatus.UNAVAILABLE
+
+    with pytest.raises(ValidationError):
+        ChargeStationChannel.model_validate({"globalStatus": "UnexpectedStatus"})
 
 
 def test_access_type_enum() -> None:
-    """Test AccessType enum parsing."""
-    assert AccessType.from_str("PRIVATE") == AccessType.PRIVATE
-    assert AccessType.from_str("PublicPaid") == AccessType.PUBLIC_PAID
-    assert AccessType.from_str("publicfree") == AccessType.PUBLIC_FREE
-    assert AccessType.from_str("invalid") == AccessType.UNKNOWN
-    assert AccessType.from_str(None) == AccessType.UNKNOWN
+    """Test GraphQL access type enum validation."""
+    options = AccessOptions.model_validate({"accessType": "PublicPaid"})
+    assert options.access_type == AccessType.PUBLIC_PAID
 
 
 def test_price_element_model() -> None:
     """Test PriceElement parsing."""
-    pe = PriceElement.from_dict({"type": "ENERGY", "price": 0.35})
+    pe = PriceElement.model_validate({"type": "ENERGY", "price": 0.35})
     assert pe is not None
     assert pe.type == "ENERGY"
     assert pe.price == 0.35
-    assert PriceElement.from_dict(None) is None
+    with pytest.raises(ValidationError):
+        PriceElement.model_validate(None)
 
 
 def test_active_transaction_model() -> None:
@@ -59,7 +72,7 @@ def test_active_transaction_model() -> None:
         "priceElements": [{"type": "ENERGY", "price": 0.35}],
         "channelVisibleId": 1,
     }
-    tx = ActiveTransaction.from_dict(data)
+    tx = ActiveTransaction.model_validate(data)
     assert tx is not None
     assert tx.energy_delivered == 15.5
     assert tx.duration_charging == 7200.0
@@ -68,101 +81,132 @@ def test_active_transaction_model() -> None:
     assert len(tx.price_elements) == 1
     assert tx.channel_visible_id == 1
 
-    assert ActiveTransaction.from_dict(None) is None
+    with pytest.raises(ValidationError):
+        ActiveTransaction.model_validate(None)
 
 
 def test_completed_transaction_model() -> None:
     """Test CompletedTransaction parsing and properties."""
     data = {
         "id": "tx_100",
-        "status": "COMPLETED",
+        "status": "Billable",
+        "globalStatus": "GlobalStatusCompleted",
+        "type": "Local",
         "startDate": "2024-08-01T12:00:00Z",
         "lastUpdateDate": "2024-08-01T14:30:00Z",
-        "totalDuration": 9000.0,
+        "totalDuration": 2.5,
         "totalEnergy": 22.0,
+        "totalIdleTime": 0.08333333333333333,
         "homeCharging": True,
         "cardSnapshot": {
             "externalId": "NL-50F-111",
             "type": "RFID",
         },
+        "locationSnapshot": {
+            "chargeStationName": "Home Charger",
+            "evse": {"id": "evse_1"},
+        },
         "transactionPrices": [
             {
                 "totalCost": 7.70,
+                "type": "CpoCustomer",
+                "vatPercentage": 21.0,
                 "currency": {"code": "EUR"},
             }
         ],
     }
-    tx = CompletedTransaction.from_dict(data)
+    tx = CompletedTransaction.model_validate(data)
     assert tx is not None
     assert tx.id == "tx_100"
+    assert tx.status is models.TransactionStatus.BILLABLE
+    assert tx.global_status is models.TransactionGlobalStatus.COMPLETED
+    assert tx.type is models.TransactionType.LOCAL
+    assert tx.total_duration == 2.5
     assert tx.total_duration == 2.5
     assert tx.total_energy == 22.0
+    assert tx.total_idle_time == pytest.approx(5 / 60)
     assert tx.home_charging is True
     assert tx.card_id == "NL-50F-111"
     assert tx.total_cost == 7.70
     assert tx.currency == "EUR"
-    assert tx.start_datetime == datetime(2024, 8, 1, 12, 0, 0, tzinfo=UTC)
-    assert tx.end_datetime == datetime(2024, 8, 1, 14, 30, 0, tzinfo=UTC)
+    assert tx.card_snapshot is not None
+    assert tx.card_snapshot.external_id == "NL-50F-111"
+    assert tx.card_snapshot.type is models.CardType.RFID
+    assert tx.location_snapshot is not None
+    assert tx.location_snapshot.evse is not None
+    assert tx.location_snapshot.evse.id == "evse_1"
+    assert tx.start_date == datetime(2024, 8, 1, 12, 0, 0, tzinfo=UTC)
+    assert tx.last_update_date == datetime(2024, 8, 1, 14, 30, 0, tzinfo=UTC)
 
     # Fallback to internalId or contractId if externalId missing
     data_internal = {
         "id": "tx_101",
+        "status": "Billed",
         "cardSnapshot": {"internalId": "INT_99"},
     }
-    tx_internal = CompletedTransaction.from_dict(data_internal)
+    tx_internal = CompletedTransaction.model_validate(data_internal)
     assert tx_internal.card_id == "INT_99"
 
     data_contract = {
         "id": "tx_102",
+        "status": "BillingDelegated",
         "cardSnapshot": {"contractId": "CON_88"},
     }
-    tx_contract = CompletedTransaction.from_dict(data_contract)
+    tx_contract = CompletedTransaction.model_validate(data_contract)
     assert tx_contract.card_id == "CON_88"
 
-    assert CompletedTransaction.from_dict(None) is None
+    with pytest.raises(ValidationError):
+        CompletedTransaction.model_validate(None)
+
+    with pytest.raises(ValidationError):
+        CompletedTransaction.model_validate(
+            {"id": "tx_naive", "status": "Billable", "startDate": "2024-08-01T12:00:00"}
+        )
 
 
 def test_home_charging_compensation_model() -> None:
     """Test HomeChargingCompensation parsing and calculations."""
-    hcc = HomeChargingCompensation.from_dict(
+    hcc = HomeChargingCompensation.model_validate(
         {"hccEnabled": True, "hccTariff": 0.30},
-        vat_multiplier=1.21,
+        context={"vat_multiplier": 1.21},
     )
     assert hcc.hcc_enabled is True
+    assert hcc.hcc_tariff == 0.30
     assert hcc.raw_hcc_tariff == 0.30
-    assert hcc.hcc_tariff == 0.3630
-    assert hcc.vat_multiplier == 1.21
-    assert hcc.vat_percentage == 21.0
+    assert hcc.tariff_with_vat(1.21) == 0.3630
 
     # Test 4 decimal precision
-    hcc_precise = HomeChargingCompensation.from_dict(
+    hcc_precise = HomeChargingCompensation.model_validate(
         {"hccEnabled": True, "hccTariff": 0.2830188679245283},
-        vat_multiplier=1.06,
+        context={"vat_multiplier": 1.06},
     )
     assert hcc_precise.raw_hcc_tariff == 0.2830
-    assert hcc_precise.hcc_tariff == 0.3000
+    assert hcc_precise.tariff_with_vat(1.06) == 0.3000
 
     # Null tariff handling
-    hcc_none = HomeChargingCompensation.from_dict(None, vat_multiplier=1.21)
+    hcc_none = HomeChargingCompensation.model_validate(
+        {}
+    )
     assert hcc_none.hcc_enabled is False
     assert hcc_none.hcc_tariff is None
 
 
 def test_charge_station_channel_model() -> None:
     """Test ChargeStationChannel formatted status and parsing."""
-    ch = ChargeStationChannel.from_dict(
+    ch = ChargeStationChannel.model_validate(
         {
             "id": "ch_1",
             "channelNo": 1,
-            "globalStatus": "SUSPENDED_EVSE",
+            "globalStatus": "NoCommunication",
             "cableLock": "LOCKED",
             "soc": 65,
         }
     )
     assert ch.id == "ch_1"
     assert ch.channel_no == 1
-    assert ch.global_status == GlobalStatus.SUSPENDED_EVSE
-    assert ch.formatted_status == "Suspended Evse"
+    assert ch.global_status == ChannelGlobalStatus.NO_COMMUNICATION
+    assert ch.status == GlobalStatus.UNAVAILABLE
+    assert ch.formatted_status == "Unavailable"
     assert ch.cable_lock == "LOCKED"
     assert ch.soc == 65
 
@@ -173,33 +217,43 @@ def test_charge_station_and_station_data() -> None:
         "id": "st_1",
         "name": "My Station",
         "channels": [
-            {"id": "ch_1", "channelNo": 1, "globalStatus": "AVAILABLE"},
-            {"id": "ch_2", "channelNo": 2, "globalStatus": "CHARGING"},
+            {"id": "ch_1", "channelNo": 1, "globalStatus": "Available"},
+            {"id": "ch_2", "channelNo": 2, "globalStatus": "Charging"},
         ],
         "manufacturerType": {"vendor": "Alfen", "model": "Eve"},
+        "homeChargingCompensation": {"hccEnabled": True, "hccTariff": 0.30},
         "location": {
             "address": "Main St 1",
             "countryDetails": {"code": "NL", "currency": {"code": "EUR"}},
         },
-        "transactions": {"items": [{"id": "tx_prev", "totalEnergy": 10.0}]},
+        "transactions": {
+            "items": [
+                {"id": "tx_prev", "status": "Billable", "totalEnergy": 10.0}
+            ]
+        },
     }
-    station = ChargeStation.from_dict(station_dict, vat_multiplier=1.21)
+    station = ChargeStation.model_validate(station_dict)
     assert station.id == "st_1"
     assert len(station.channels) == 2
     assert station.last_transaction is not None
     assert station.last_transaction.total_energy == 10.0
+    assert station.location is not None
+    assert station.location.country_details.currency is not None
+    assert station.location.country_details.currency.code == "EUR"
 
     st_data = StationData(
         station=station,
         channels={ch.channel_no: ch for ch in station.channels},
+        vat_multiplier=1.21,
     )
     assert st_data.num_channels == 2
-    assert st_data.last_transaction.id == "tx_prev"
+    assert st_data.station.last_transaction.id == "tx_prev"
+    assert st_data.hcc_tariff == 0.363
 
 
 def test_login_result_model() -> None:
     """Test LoginResult parsing."""
-    res = LoginResult.from_dict(
+    res = LoginResult.model_validate(
         {"accessToken": "jwt_token", "expiresIn": 3600, "tokenType": "Bearer"}
     )
     assert res.access_token == "jwt_token"
@@ -207,7 +261,7 @@ def test_login_result_model() -> None:
     assert res.token_type == "Bearer"
 
     # Snake_case variant
-    res2 = LoginResult.from_dict(
+    res2 = LoginResult.model_validate(
         {"access_token": "jwt_token2", "expires_in": "7200", "token_type": "Bearer"}
     )
     assert res2.access_token == "jwt_token2"
@@ -216,21 +270,29 @@ def test_login_result_model() -> None:
 
 def test_charge_card_model() -> None:
     """Test ChargeCard identifier, display_name, and active properties."""
-    card = ChargeCard.from_dict(
+    card = ChargeCard.model_validate(
         {
             "id": "card_1",
             "externalId": "NL-50F-0001",
             "state": "ACTIVE",
             "cardProvider": {"name": "50five"},
+            "customer": {"id": "customer_1"},
+            "transactionCustomer": {"id": "transaction_customer_1"},
         }
     )
     assert card is not None
     assert card.identifier == "NL-50F-0001"
+    assert card.card_provider is not None
+    assert card.card_provider.name == "50five"
+    assert card.customer is not None
+    assert card.customer.id == "customer_1"
+    assert card.transaction_customer is not None
+    assert card.transaction_customer.id == "transaction_customer_1"
     assert card.display_name == "NL-50F-0001 (50five)"
     assert card.is_active is True
 
     # Card with contractId fallback and type in display name
-    card_contract = ChargeCard.from_dict(
+    card_contract = ChargeCard.model_validate(
         {
             "id": "card_2",
             "contractId": "CON-999",
@@ -242,4 +304,5 @@ def test_charge_card_model() -> None:
     assert card_contract.display_name == "CON-999 (RFID)"
     assert card_contract.is_active is False
 
-    assert ChargeCard.from_dict(None) is None
+    with pytest.raises(ValidationError):
+        ChargeCard.model_validate(None)

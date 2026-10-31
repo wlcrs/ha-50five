@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 const = importlib.import_module("custom_components.50five.const")
 diagnostics_mod = importlib.import_module("custom_components.50five.diagnostics")
 redact_mod = importlib.import_module("custom_components.50five.redact")
+models_mod = importlib.import_module("custom_components.50five.models")
 
 CONF_ACCESS_TOKEN = const.CONF_ACCESS_TOKEN
 CONF_CARD_ID = const.CONF_CARD_ID
@@ -16,6 +17,13 @@ CONF_CUSTOMER_ID = const.CONF_CUSTOMER_ID
 CONF_DEVICE_ID = const.CONF_DEVICE_ID
 mask_value = redact_mod.mask_value
 censor = redact_mod.censor
+ChargeCard = models_mod.ChargeCard
+CardProvider = models_mod.CardProvider
+ChargeStationChannel = models_mod.ChargeStationChannel
+GetCustomerChargeCardsResponse = models_mod.GetCustomerChargeCardsResponse
+ActiveTransaction = models_mod.ActiveTransaction
+Location = models_mod.Location
+LoginResult = models_mod.LoginResult
 async_get_config_entry_diagnostics = diagnostics_mod.async_get_config_entry_diagnostics
 
 
@@ -26,7 +34,57 @@ def test_mask_value() -> None:
     assert mask_value("12345678") == "12****78"
     assert mask_value("station_999") == "st*******99"
     assert mask_value(12345) == "12*45"
-    assert censor({"id": 12345}) == {"id": "12*45"}
+    assert censor(
+        {"getCustomerByIdId": 12345, "chargeStationId": 67890, "card": 24680}
+    ) == {
+        "getCustomerByIdId": "12*45",
+        "chargeStationId": "67*90",
+        "card": "24*80",
+    }
+    assert censor(ChargeStationChannel(id="channel_12345"))["id"] == (
+        "ch*********45"
+    )
+    assert censor(
+        {
+            "getCustomerById": {
+                "id": "customer_1",
+                "cards": [
+                    {"id": "card_1", "cardProvider": {"name": "External Provider"}}
+                ],
+            }
+        },
+        response_model=GetCustomerChargeCardsResponse,
+    ) == {
+        "getCustomerById": {
+            "id": "cu******_1",
+            "cards": [
+                {"id": "ca**_1", "cardProvider": {"name": "<redacted>"}}
+            ],
+        }
+    }
+    assert censor({"station": {"name": "Home Charger"}}) == {
+        "station": {"name": "Home Charger"}
+    }
+    card = ChargeCard(card_provider=CardProvider(name="External Provider"))
+    assert censor(card)["card_provider"]["name"] == "<redacted>"
+
+    active_tx = censor(
+        ActiveTransaction(address="Private address", zip_code="12345", city="Town")
+    )
+    assert active_tx["address"] == "<redacted>"
+    assert active_tx["zip_code"] == "<redacted>"
+    assert active_tx["city"] == "<redacted>"
+
+    location = censor(
+        Location(address="Private address", postal_code="12345", city="Town")
+    )
+    assert location["address"] == "<redacted>"
+    assert location["postal_code"] == "<redacted>"
+    assert location["city"] == "<redacted>"
+
+    assert censor(LoginResult(access_token="secret-token"))["access_token"] == (
+        "<redacted>"
+    )
 
 
 async def test_diagnostics(
@@ -68,10 +126,10 @@ async def test_diagnostics(
         "vendor": "Alfen",
         "model": "Eve Single Pro-line",
     }
-    assert station["access_options"]["access_type"] == "private"
+    assert station["access_options"]["access_type"] == "Private"
     assert station["hcc"]["hcc_enabled"] is True
-    assert station["hcc"]["hcc_tariff"] == 0.363
-    assert station["hcc"]["raw_hcc_tariff"] == 0.30
+    assert station["hcc"]["hcc_tariff"] == 0.30
+    assert st1["vat_multiplier"] == 1.21
 
     # Sensitive location fields are fully redacted
     assert station["location"]["address"] == "<redacted>"
@@ -81,7 +139,7 @@ async def test_diagnostics(
     assert channel["id"] == mask_value("ch_999_1")
     assert channel["evse_id"] == mask_value("NL*50F*E999*1")
 
-    tx = station["transactions"][0]
+    tx = station["transactions"]["items"][0]
     assert tx["id"] == mask_value("tx_last_1")
     assert tx["total_energy"] == 28.5
 

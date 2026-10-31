@@ -11,12 +11,24 @@ from gql.transport.exceptions import (
     TransportQueryError,
     TransportServerError,
 )
+from pydantic import BaseModel
 
 api_mod = importlib.import_module("custom_components.50five.api")
 const = importlib.import_module("custom_components.50five.const")
 exceptions = importlib.import_module("custom_components.50five.exceptions")
 
 FiftyFiveApiClient = api_mod.FiftyFiveApiClient
+GetChargeStationByIdResponse = api_mod.GetChargeStationByIdResponse
+GetCustomerByIdResponse = api_mod.GetCustomerByIdResponse
+GetCustomerChargeCardsResponse = api_mod.GetCustomerChargeCardsResponse
+GetCustomerChargeStationsResponse = api_mod.GetCustomerChargeStationsResponse
+HardResetResponse = api_mod.HardResetResponse
+LmsActiveTransactionResponse = api_mod.LmsActiveTransactionResponse
+ResetParametersCacheResponse = api_mod.ResetParametersCacheResponse
+SoftResetResponse = api_mod.SoftResetResponse
+StartTransactionResponse = api_mod.StartTransactionResponse
+StopTransactionResponse = api_mod.StopTransactionResponse
+UnlockConnectorResponse = api_mod.UnlockConnectorResponse
 HomeAssistantAIOHTTPTransport = api_mod.HomeAssistantAIOHTTPTransport
 _extract_customer_id_from_jwt = api_mod._extract_customer_id_from_jwt
 _extract_jwt_claims = api_mod._extract_jwt_claims
@@ -36,10 +48,15 @@ from .const import (
     MOCK_DEVICE_ID,
     MOCK_LOGIN_RESPONSE,
     MOCK_PASSWORD,
-    MOCK_MULTI_STATION_ID,
     MOCK_STATION_ID,
     MOCK_USERNAME,
 )
+
+
+class DummyResponse(BaseModel):
+    """Minimal typed response for _execute_query error-path tests."""
+
+    result: str | None = None
 
 
 def test_extract_jwt_claims() -> None:
@@ -127,10 +144,7 @@ def test_app_graphql_operation_names() -> None:
     assert "query GetCustomerChargeStations" in api_mod._query_text(
         api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY
     )
-    assert "query GetChargeStationOverview" in api_mod._query_text(
-        api_mod.GET_CHARGE_STATION_OVERVIEW_QUERY
-    )
-    assert "query GetChargingHistory" in api_mod._query_text(
+    assert "query GetChargeStationTransactions" in api_mod._query_text(
         api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
     )
 
@@ -256,9 +270,9 @@ async def test_get_vat_multiplier() -> None:
 
     # Belgium category: BE -> 1.06
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {
-            "getCustomerById": {"id": MOCK_CUSTOMER_ID, "providerCategory": "BE"}
-        }
+        mock_query.return_value = GetCustomerByIdResponse.model_validate(
+            {"getCustomerById": {"id": MOCK_CUSTOMER_ID, "providerCategory": "BE"}}
+        )
         vat = await client.get_vat_multiplier()
         assert vat == 1.06
 
@@ -306,9 +320,37 @@ async def test_execute_query_reauth_on_401() -> None:
         ]
 
         _DUMMY_DOC = parse_gql("{ __typename }")
-        res = await client._execute_query(_DUMMY_DOC)
-        assert res == {"result": "success"}
+        res = await client._execute_query(
+            _DUMMY_DOC, response_model=DummyResponse
+        )
+        assert res.result == "success"
         assert mock_auth.call_count == 1
+
+
+async def test_execute_query_parses_response_model() -> None:
+    """Test _execute_query validates and returns the requested response model."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    with patch(
+        "gql.Client.execute_async",
+        new_callable=AsyncMock,
+        return_value=MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE,
+    ):
+        response = await client._execute_query(
+            api_mod.GET_CUSTOMER_CHARGE_CARDS_QUERY,
+            {"getCustomerByIdId": MOCK_CUSTOMER_ID},
+            response_model=GetCustomerChargeCardsResponse,
+        )
+
+    assert isinstance(response, GetCustomerChargeCardsResponse)
+    assert response.get_customer_by_id is not None
+    assert response.get_customer_by_id.cards is not None
+    assert response.get_customer_by_id.cards[0].card_provider.name == "50five"
 
 
 async def test_execute_query_connection_and_api_errors() -> None:
@@ -328,7 +370,7 @@ async def test_execute_query_connection_and_api_errors() -> None:
         ),
         pytest.raises(FiftyFiveConnectionError),
     ):
-        await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC, response_model=DummyResponse)
 
     with (
         patch(
@@ -337,7 +379,7 @@ async def test_execute_query_connection_and_api_errors() -> None:
         ),
         pytest.raises(FiftyFiveApiError),
     ):
-        await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC, response_model=DummyResponse)
 
     with (
         patch(
@@ -345,7 +387,7 @@ async def test_execute_query_connection_and_api_errors() -> None:
         ),
         pytest.raises(FiftyFiveApiError),
     ):
-        await client._execute_query(_DUMMY_DOC)
+        await client._execute_query(_DUMMY_DOC, response_model=DummyResponse)
 
 
 async def test_api_query_methods() -> None:
@@ -360,85 +402,48 @@ async def test_api_query_methods() -> None:
 
     # 1. get_customer_charge_stations
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        base_response = {
-            "getCustomerChargeStations": [
-                {
-                    key: value
-                    for key, value in station.items()
-                    if key not in {"accessOptions", "homeChargingCompensation"}
-                }
-                for station in MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE[
-                    "getCustomerChargeStations"
-                ]
-            ]
-        }
-        mock_query.side_effect = [
-            base_response,
-            {
-                "getChargeStationById": {
-                    "id": MOCK_STATION_ID,
-                    "accessOptions": {
-                        "authorizationMode": "RFID",
-                        "accessType": "PRIVATE",
-                        "publishedOnMap": False,
-                    },
-                    "homeChargingCompensation": {
-                        "hccEnabled": True,
-                        "hccTariff": 0.30,
-                    },
-                }
-            },
-            {
-                "getChargeStationById": {
-                    "id": MOCK_MULTI_STATION_ID,
-                    "accessOptions": {
-                        "authorizationMode": "RFID",
-                        "accessType": "PUBLIC_PAID",
-                        "publishedOnMap": True,
-                    },
-                    "homeChargingCompensation": {
-                        "hccEnabled": False,
-                        "hccTariff": None,
-                    },
-                }
-            },
-        ]
+        mock_query.return_value = GetCustomerChargeStationsResponse.model_validate(
+            MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE
+        )
         stations = await client.get_customer_charge_stations()
         assert len(stations) == 2
         assert stations[0].id == MOCK_STATION_ID
         assert stations[0].access_options.authorization_mode == "RFID"
         assert stations[0].hcc.hcc_enabled is True
-        assert mock_query.await_count == 3
+        assert stations[0].subscriptions is not None
+        assert stations[0].subscriptions[0].product is not None
+        assert stations[0].subscriptions[0].product.name == "Basic Care"
+        assert stations[0].charge_group is not None
+        assert stations[0].charge_group.tariff_vat is not None
+        assert stations[0].charge_group.tariff_vat.energy == 0.35
+        assert mock_query.await_count == 1
         assert mock_query.await_args_list[0].args == (
             api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY,
-        )
-        overview_calls = mock_query.await_args_list[1:]
-        assert {
-            call.args[1]["getChargeStationByIdId"]
-            for call in overview_calls
-        } == {MOCK_STATION_ID, MOCK_MULTI_STATION_ID}
-        assert all(
-            call.args[0] == api_mod.GET_CHARGE_STATION_OVERVIEW_QUERY
-            for call in overview_calls
         )
 
     # 2. get_charge_station_details
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = MOCK_CHARGE_STATION_DETAILS_RESPONSE
+        mock_query.return_value = GetChargeStationByIdResponse.model_validate(
+            MOCK_CHARGE_STATION_DETAILS_RESPONSE
+        )
         station = await client.get_charge_station_details(MOCK_STATION_ID)
         assert station is not None
         assert station.id == MOCK_STATION_ID
 
     # 3. get_active_transaction
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = MOCK_ACTIVE_TRANSACTION_RESPONSE
+        mock_query.return_value = LmsActiveTransactionResponse.model_validate(
+            MOCK_ACTIVE_TRANSACTION_RESPONSE
+        )
         tx = await client.get_active_transaction()
         assert tx is not None
         assert tx.energy_delivered == 12.4
 
     # 4. get_charge_cards / get_tokens
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE
+        mock_query.return_value = GetCustomerChargeCardsResponse.model_validate(
+            MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE
+        )
         cards = await client.get_charge_cards()
         assert len(cards) == 2
         assert cards[0].identifier == "NL-50F-123456-7"
@@ -448,27 +453,63 @@ async def test_api_query_methods() -> None:
 
     # 5. get_charge_station_transactions
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {
-            "getTransactions": {
-                "items": [
-                    {
-                        "id": "tx_test_1",
-                        "status": "COMPLETED",
-                        "totalEnergy": 15.0,
-                    }
-                ]
+        mock_query.return_value = GetChargeStationByIdResponse.model_validate({
+            "getChargeStationById": {
+                "id": MOCK_STATION_ID,
+                "transactions": {
+                    "items": [
+                        {
+                            "id": "tx_test_1",
+                            "status": "Billable",
+                            "globalStatus": "GlobalStatusBillable",
+                            "type": None,
+                            "startDate": "2026-10-29T20:00:43+00:00",
+                            "lastUpdateDate": "2026-10-30T07:14:07+00:00",
+                            "totalDuration": 11.1861,
+                            "totalEnergy": 0,
+                            "totalIdleTime": 0,
+                            "homeCharging": True,
+                            "cardSnapshot": {
+                                "externalId": "BE*******Z9",
+                                "internalId": None,
+                                "contractId": "BE**************-2",
+                                "type": None,
+                            },
+                            "transactionPrices": [
+                                {
+                                    "totalCost": 0,
+                                    "type": "CpoCustomer",
+                                    "vatPercentage": 0,
+                                    "currency": {"code": "EUR"},
+                                },
+                                {
+                                    "totalCost": 0,
+                                    "type": "CpoProvider",
+                                    "vatPercentage": 0,
+                                    "currency": {"code": "EUR"},
+                                },
+                            ],
+                        }
+                    ]
+                },
             }
-        }
+        })
         txs = await client.get_charge_station_transactions(MOCK_STATION_ID)
         assert len(txs) == 1
         assert txs[0].id == "tx_test_1"
-        assert txs[0].total_energy == 15.0
+        assert txs[0].total_duration == 11.1861
+        assert txs[0].total_duration == 11.1861
+        assert txs[0].total_energy == 0
+        assert txs[0].type is None
+        assert txs[0].card_snapshot is not None
+        assert txs[0].card_snapshot.internal_id is None
+        assert txs[0].total_cost == 0
+        assert txs[0].currency == "EUR"
         query, variables = mock_query.await_args.args
         assert query == api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
-        assert variables["getTransactionsFilters"]["chargeStation"] == {
-            "id": MOCK_STATION_ID
-        }
-        assert variables["sort"] == {"startDate": "DESC"}
+        assert variables["getChargeStationByIdId"] == MOCK_STATION_ID
+        assert variables["txFilters"]["itemsPerPage"] == 5
+        assert variables["txSort"] == {"startDate": "desc"}
 
 
 async def test_get_charge_cards_edge_cases() -> None:
@@ -484,7 +525,9 @@ async def test_get_charge_cards_edge_cases() -> None:
     # getCustomerById returns None
     client.customer_id = "cust_123"
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"getCustomerById": None}
+        mock_query.return_value = GetCustomerChargeCardsResponse(
+            get_customer_by_id=None
+        )
         assert await client.get_charge_cards() == []
 
 
@@ -497,27 +540,29 @@ async def test_api_mutation_methods() -> None:
     )
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"startTransaction": True}
+        mock_query.return_value = StartTransactionResponse(start_transaction=True)
         assert await client.start_charging(MOCK_STATION_ID, "1", "CARD-1") is True
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"stopTransaction": True}
+        mock_query.return_value = StopTransactionResponse(stop_transaction=True)
         assert await client.stop_charging(MOCK_STATION_ID, "1") is True
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"unlockConnector": True}
+        mock_query.return_value = UnlockConnectorResponse(unlock_connector=True)
         assert await client.unlock_connector(MOCK_STATION_ID, "1") is True
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"softReset": True}
+        mock_query.return_value = SoftResetResponse(soft_reset=True)
         assert await client.soft_reset(MOCK_STATION_ID) is True
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"hardReset": True}
+        mock_query.return_value = HardResetResponse(hard_reset=True)
         assert await client.hard_reset(MOCK_STATION_ID) is True
 
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = {"resetChargeStationParametersCache": True}
+        mock_query.return_value = ResetParametersCacheResponse(
+            reset_charge_station_parameters_cache=True
+        )
         assert await client.reset_parameters_cache(MOCK_STATION_ID) is True
 
 

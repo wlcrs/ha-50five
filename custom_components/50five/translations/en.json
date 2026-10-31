@@ -100,6 +100,9 @@
       "last_transaction_duration": {
         "name": "Last session duration"
       },
+      "last_transaction_idle_time": {
+        "name": "Last session idle time"
+      },
       "last_transaction_start_time": {
         "name": "Last session start"
       },

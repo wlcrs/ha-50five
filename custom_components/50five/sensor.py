@@ -39,7 +39,7 @@ class FiftyFiveSensorEntityDescription(SensorEntityDescription):
 def _get_channel_status(data: StationData, channel_no: int) -> str:
     """Extract global status enum string for a channel."""
     ch = data.channels.get(channel_no)
-    return ch.global_status.value if ch else GlobalStatus.UNKNOWN.value
+    return ch.status.value if ch else GlobalStatus.UNKNOWN.value
 
 
 def _matching_active_tx(data: StationData, channel_no: int):
@@ -74,17 +74,16 @@ def _get_session_cost(data: StationData, channel_no: int) -> float:
 
 def _get_hcc_tariff(data: StationData, _ch: int) -> float | None:
     """Return Home Charging Compensation tariff (€/kWh)."""
-    return data.station.hcc.hcc_tariff
+    return data.hcc_tariff
 
 
 def _get_hcc_tariff_attrs(data: StationData, _ch: int) -> dict[str, Any]:
     """Return extra state attributes for HCC tariff entity."""
-    hcc = data.station.hcc
-    vat_pct = hcc.vat_percentage
+    vat_pct = data.vat_percentage
     return {
-        ATTR_RAW_TARIFF: hcc.raw_hcc_tariff,
+        ATTR_RAW_TARIFF: data.raw_hcc_tariff,
         ATTR_VAT: int(vat_pct) if vat_pct.is_integer() else vat_pct,
-        ATTR_VAT_MULTIPLIER: hcc.vat_multiplier,
+        ATTR_VAT_MULTIPLIER: data.vat_multiplier,
     }
 
 
@@ -141,7 +140,9 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="hcc_enabled",
         icon="mdi:home-lightning-bolt",
         value_fn=lambda data, _ch: (
-            "Enabled" if data.station.hcc.hcc_enabled else "Disabled"
+            "Enabled"
+            if data.station.hcc and data.station.hcc.hcc_enabled
+            else "Disabled"
         ),
     ),
     # Last completed transaction sensors
@@ -153,7 +154,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         state_class=SensorStateClass.TOTAL,
         icon="mdi:lightning-bolt-circle",
         value_fn=lambda data, _ch: (
-            data.last_transaction.total_energy if data.last_transaction else None
+            data.station.last_transaction.total_energy if data.station.last_transaction else None
         ),
     ),
     FiftyFiveSensorEntityDescription(
@@ -163,7 +164,17 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.HOURS,
         icon="mdi:timer-sand",
         value_fn=lambda data, _ch: (
-            data.last_transaction.total_duration if data.last_transaction else None
+            data.station.last_transaction.total_duration if data.station.last_transaction else None
+        ),
+    ),
+    FiftyFiveSensorEntityDescription(
+        key="last_transaction_idle_time",
+        translation_key="last_transaction_idle_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        icon="mdi:timer-pause-outline",
+        value_fn=lambda data, _ch: (
+            data.station.last_transaction.total_idle_time if data.station.last_transaction else None
         ),
     ),
     FiftyFiveSensorEntityDescription(
@@ -172,7 +183,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-start",
         value_fn=lambda data, _ch: (
-            data.last_transaction.start_datetime if data.last_transaction else None
+            data.station.last_transaction.start_date if data.station.last_transaction else None
         ),
     ),
     FiftyFiveSensorEntityDescription(
@@ -181,7 +192,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-end",
         value_fn=lambda data, _ch: (
-            data.last_transaction.end_datetime if data.last_transaction else None
+            data.station.last_transaction.last_update_date if data.station.last_transaction else None
         ),
     ),
     FiftyFiveSensorEntityDescription(
@@ -191,7 +202,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         native_unit_of_measurement=CURRENCY_EURO,
         icon="mdi:cash-check",
         value_fn=lambda data, _ch: (
-            data.last_transaction.total_cost if data.last_transaction else None
+            data.station.last_transaction.total_cost if data.station.last_transaction else None
         ),
     ),
     FiftyFiveSensorEntityDescription(
@@ -199,7 +210,7 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="last_transaction_card",
         icon="mdi:card-account-details-outline",
         value_fn=lambda data, _ch: (
-            data.last_transaction.card_id if data.last_transaction else None
+            data.station.last_transaction.card_id if data.station.last_transaction else None
         ),
     ),
 )
@@ -264,7 +275,9 @@ class FiftyFiveBaseSensor(CoordinatorEntity[FiftyFiveCoordinator], SensorEntity)
 
         station_data = coordinator.data.get(spot_id)
         station_name = (
-            station_data.station.name if station_data else f"Charge Station {spot_id}"
+            station_data.station.display_name
+            if station_data
+            else f"Charge Station {spot_id}"
         )
         mfg = station_data.station.manufacturer if station_data else None
 

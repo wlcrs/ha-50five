@@ -78,7 +78,9 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
 
         station_data = coordinator.data.get(spot_id)
         station_name = (
-            station_data.station.name if station_data else f"Charge Station {spot_id}"
+            station_data.station.display_name
+            if station_data
+            else f"Charge Station {spot_id}"
         )
         mfg = station_data.station.manufacturer if station_data else None
 
@@ -126,7 +128,7 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
             return False
 
         ch = station_data.channels.get(self._channel_no)
-        if ch and ch.global_status in (
+        if ch and ch.status in (
             GlobalStatus.CHARGING,
             GlobalStatus.OCCUPIED,
             GlobalStatus.PREPARING,

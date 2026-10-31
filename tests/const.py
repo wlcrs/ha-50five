@@ -113,7 +113,7 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
                     "id": "ch_999_1",
                     "evseId": "NL*50F*E999*1",
                     "channelNo": 1,
-                    "globalStatus": "AVAILABLE",
+                    "globalStatus": "Available",
                 }
             ],
             "location": {
@@ -140,7 +140,7 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
             },
             "accessOptions": {
                 "authorizationMode": "RFID",
-                "accessType": "PRIVATE",
+                "accessType": "Private",
                 "publishedOnMap": False,
             },
             "homeChargingCompensation": {
@@ -151,14 +151,14 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
                 "items": [
                     {
                         "id": "tx_last_1",
-                        "status": "COMPLETED",
-                        "globalStatus": "FINISHED",
-                        "type": "REGULAR",
+                        "status": "Billable",
+                        "globalStatus": "GlobalStatusCompleted",
+                        "type": "Local",
                         "startDate": "2024-08-20T10:00:00Z",
                         "lastUpdateDate": "2024-08-20T14:30:00Z",
-                        "totalDuration": 16200.0,
+                        "totalDuration": 4.5,
                         "totalEnergy": 28.5,
-                        "totalIdleTime": 300.0,
+                        "totalIdleTime": 0.08333333333333333,
                         "homeCharging": True,
                         "cardSnapshot": {
                             "externalId": MOCK_CARD_ID,
@@ -166,10 +166,14 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
                             "contractId": "CON_001",
                             "type": "RFID",
                         },
+                        "locationSnapshot": {
+                            "chargeStationName": "Home Charger Single",
+                            "evse": {"id": "evse_999"},
+                        },
                         "transactionPrices": [
                             {
                                 "totalCost": 9.98,
-                                "type": "CONSUMPTION",
+                                "type": "CpoCustomer",
                                 "vatPercentage": 21.0,
                                 "currency": {"code": "EUR"},
                             }
@@ -187,13 +191,13 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
                     "id": "ch_888_1",
                     "evseId": "NL*50F*E888*1",
                     "channelNo": 1,
-                    "globalStatus": "CHARGING",
+                    "globalStatus": "Charging",
                 },
                 {
                     "id": "ch_888_2",
                     "evseId": "NL*50F*E888*2",
                     "channelNo": 2,
-                    "globalStatus": "AVAILABLE",
+                    "globalStatus": "Available",
                 },
             ],
             "location": {
@@ -208,7 +212,7 @@ MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE = {
             },
             "accessOptions": {
                 "authorizationMode": "RFID",
-                "accessType": "PUBLIC_PAID",
+                "accessType": "PublicPaid",
                 "publishedOnMap": True,
             },
             "homeChargingCompensation": {
@@ -230,7 +234,7 @@ MOCK_CHARGE_STATION_DETAILS_RESPONSE = {
                 "id": "ch_999_1",
                 "evseId": "NL*50F*E999*1",
                 "channelNo": 1,
-                "globalStatus": "AVAILABLE",
+                "globalStatus": "Available",
                 "cableLock": "UNLOCKED",
                 "soc": 80,
                 "activeTariff": {"energy": 0.35, "flat": 0.0, "time": 0.0},

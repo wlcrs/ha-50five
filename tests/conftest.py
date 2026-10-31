@@ -68,7 +68,7 @@ def mock_config_entry() -> MockConfigEntry:
 def mock_charge_stations() -> list[ChargeStation]:
     """Return mock ChargeStation models."""
     return [
-        ChargeStation.from_dict(st, vat_multiplier=1.21)
+        ChargeStation.model_validate(st)
         for st in MOCK_CUSTOMER_CHARGE_STATIONS_RESPONSE["getCustomerChargeStations"]
     ]
 
@@ -79,7 +79,7 @@ def mock_charge_cards() -> list[ChargeCard]:
     return [
         c
         for c in (
-            ChargeCard.from_dict(raw)
+            ChargeCard.model_validate(raw)
             for raw in MOCK_CUSTOMER_CHARGE_CARDS_RESPONSE["getCustomerById"]["cards"]
         )
         if c is not None
@@ -89,7 +89,7 @@ def mock_charge_cards() -> list[ChargeCard]:
 @pytest.fixture
 def mock_active_transaction() -> ActiveTransaction | None:
     """Return mock ActiveTransaction model."""
-    return ActiveTransaction.from_dict(
+    return ActiveTransaction.model_validate(
         MOCK_ACTIVE_TRANSACTION_RESPONSE["lmsActiveTransaction"]
     )
 
@@ -136,7 +136,7 @@ def mock_api_client(
         async def _mock_get_transactions(station_id: str, days_back: int = 30):
             for st in mock_charge_stations:
                 if st.id == station_id:
-                    return st.transactions
+                    return st.transactions.items if st.transactions else []
             return []
 
         client.get_charge_station_transactions = AsyncMock(

@@ -1,6 +1,5 @@
 """Tests for the 50five DataUpdateCoordinator."""
 
-import dataclasses
 import importlib
 from unittest.mock import AsyncMock
 
@@ -43,13 +42,13 @@ async def test_coordinator_update_success(
     assert single_data.num_channels == 1
     assert single_data.station.name == "Home Charger Single"
     assert single_data.active_transaction == mock_active_transaction
-    assert single_data.last_transaction is not None
-    assert single_data.last_transaction.total_energy == 28.5
+    assert single_data.station.last_transaction is not None
+    assert single_data.station.last_transaction.total_energy == 28.5
 
     multi_data = data[MOCK_MULTI_STATION_ID]
     assert multi_data.num_channels == 2
-    assert multi_data.channels[1].global_status.value == "charging"
-    assert multi_data.channels[2].global_status.value == "available"
+    assert multi_data.channels[1].status.value == "charging"
+    assert multi_data.channels[2].status.value == "available"
 
 
 async def test_coordinator_no_stations(
@@ -134,7 +133,7 @@ async def test_coordinator_completed_transactions_error_resilience(
 ) -> None:
     """Test coordinator still succeeds when completed transactions query fails."""
     stations_without_tx = [
-        dataclasses.replace(st, transactions=[]) for st in mock_charge_stations
+        st.model_copy(update={"transactions": None}) for st in mock_charge_stations
     ]
     mock_api_client.get_customer_charge_stations.return_value = stations_without_tx
     mock_api_client.get_charge_station_transactions.side_effect = FiftyFiveError(
@@ -144,7 +143,7 @@ async def test_coordinator_completed_transactions_error_resilience(
 
     data = await coordinator._async_update_data()
     assert len(data) == 2
-    assert data[MOCK_STATION_ID].last_transaction is None
+    assert data[MOCK_STATION_ID].station.last_transaction is None
 
 
 async def test_coordinator_completed_transactions_fetch_success(
@@ -155,15 +154,15 @@ async def test_coordinator_completed_transactions_fetch_success(
 ) -> None:
     """Test coordinator attaches fetched completed transactions."""
     stations_without_tx = [
-        dataclasses.replace(st, transactions=[]) for st in mock_charge_stations
+        st.model_copy(update={"transactions": None}) for st in mock_charge_stations
     ]
     mock_api_client.get_customer_charge_stations.return_value = stations_without_tx
     mock_api_client.get_charge_station_transactions.return_value = mock_charge_stations[
         0
-    ].transactions
+    ].transactions.items
     coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
 
     data = await coordinator._async_update_data()
     assert len(data) == 2
-    assert data[MOCK_STATION_ID].last_transaction is not None
-    assert data[MOCK_STATION_ID].last_transaction.total_energy == 28.5
+    assert data[MOCK_STATION_ID].station.last_transaction is not None
+    assert data[MOCK_STATION_ID].station.last_transaction.total_energy == 28.5
