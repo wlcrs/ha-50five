@@ -10,6 +10,12 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 >
 > Use at your own risk. 
 
+> [!NOTE]
+> Your charging card ID is clearly visible when using this integration: as an entity name, sensor state and in the logs.
+> This is a deliberate choice so that it is always 100% clear which card you are using to start charging.
+>
+> When sharing your dashboards and/or logs with 3rd parties, please be aware of this.
+
 ---
 
 ## Features
