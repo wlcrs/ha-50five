@@ -230,6 +230,8 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 username, password, device_id
             )
             if client is not None:
+                await self.async_set_unique_id(f"{DOMAIN}_{username.lower()}")
+                self._abort_if_unique_id_mismatch()
                 self._reconfig_entry = config_entry
                 self._data = _build_entry_data(client, username, password, device_id)
                 self._cards = await self._async_fetch_cards(client)

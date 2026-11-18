@@ -437,3 +437,26 @@ async def test_reauth_flow_errors(
         user_input={CONF_PASSWORD: "bad"},
     )
     assert result3["errors"] == {"base": "unknown"}
+
+
+async def test_reconfigure_aborts_on_unique_id_mismatch(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test reconfigure aborts if the user enters a different account."""
+    mock_config_entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": mock_config_entry.entry_id,
+        },
+    )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_USERNAME: "other@example.com", CONF_PASSWORD: "new"},
+    )
+    assert result2["type"] is FlowResultType.ABORT
+    assert result2["reason"] == "unique_id_mismatch"
