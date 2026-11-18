@@ -15,12 +15,11 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTR_RAW_TARIFF, ATTR_VAT, ATTR_VAT_MULTIPLIER, DOMAIN
+from .const import ATTR_RAW_TARIFF, ATTR_VAT, ATTR_VAT_MULTIPLIER
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .entity import FiftyFiveEntity
 from .models import GlobalStatus, StationData
 
 _LOGGER = logging.getLogger(__name__)
@@ -256,11 +255,10 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class FiftyFiveBaseSensor(CoordinatorEntity[FiftyFiveCoordinator], SensorEntity):
+class FiftyFiveBaseSensor(FiftyFiveEntity, SensorEntity):
     """Base sensor for 50five."""
 
     entity_description: FiftyFiveSensorEntityDescription
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -269,33 +267,8 @@ class FiftyFiveBaseSensor(CoordinatorEntity[FiftyFiveCoordinator], SensorEntity)
         description: FiftyFiveSensorEntityDescription,
     ) -> None:
         """Initialize base sensor."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, spot_id)
         self.entity_description = description
-        self._spot_id = spot_id
-
-        station_data = coordinator.data.get(spot_id)
-        station_name = (
-            station_data.station.display_name
-            if station_data
-            else f"Charge Station {spot_id}"
-        )
-        mfg = station_data.station.manufacturer if station_data else None
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, spot_id)},
-            name=station_name,
-            manufacturer=mfg.vendor if mfg and mfg.vendor else "50five / LMS",
-            model=mfg.model if mfg and mfg.model else "Charging Station",
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return (
-            super().available
-            and self.coordinator.data is not None
-            and self._spot_id in self.coordinator.data
-        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

@@ -8,16 +8,14 @@ from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     ACTION_SETTLE_DELAY_SEC,
     CONF_CARD_ID,
-    DOMAIN,
 )
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .entity import FiftyFiveEntity
 from .models import GlobalStatus
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,10 +52,9 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEntity):
+class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
     """Representation of a 50five charging switch."""
 
-    _attr_has_entity_name = True
     _attr_icon = "mdi:ev-station"
 
     def __init__(
@@ -69,20 +66,11 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
         is_multi_channel: bool = False,
     ) -> None:
         """Initialize charging switch."""
-        super().__init__(coordinator)
-        self._spot_id = spot_id
+        super().__init__(coordinator, spot_id)
         self._entry = entry
         self._channel_no = channel_no
         self._is_multi = is_multi_channel
         self._optimistic_is_on: bool | None = None
-
-        station_data = coordinator.data.get(spot_id)
-        station_name = (
-            station_data.station.display_name
-            if station_data
-            else f"Charge Station {spot_id}"
-        )
-        mfg = station_data.station.manufacturer if station_data else None
 
         self._card_id = (
             entry.options.get(CONF_CARD_ID) or entry.data.get(CONF_CARD_ID) or ""
@@ -99,22 +87,6 @@ class FiftyFiveChargingSwitch(CoordinatorEntity[FiftyFiveCoordinator], SwitchEnt
             self._attr_unique_id = f"{spot_id}_charging"
             self._attr_translation_key = "charging"
             self._attr_translation_placeholders = {"card_id": self._card_id}
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, spot_id)},
-            name=station_name,
-            manufacturer=mfg.vendor if mfg and mfg.vendor else "50five / LMS",
-            model=mfg.model if mfg and mfg.model else "Charging Station",
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if switch is available."""
-        return (
-            super().available
-            and self.coordinator.data is not None
-            and self._spot_id in self.coordinator.data
-        )
 
     @property
     def is_on(self) -> bool:

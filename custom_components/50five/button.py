@@ -8,12 +8,11 @@ import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ACTION_SETTLE_DELAY_SEC, DOMAIN
+from .const import ACTION_SETTLE_DELAY_SEC
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .entity import FiftyFiveEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,10 +55,8 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class FiftyFiveButtonBase(CoordinatorEntity[FiftyFiveCoordinator], ButtonEntity):
+class FiftyFiveButtonBase(FiftyFiveEntity, ButtonEntity):
     """Base class for 50five buttons."""
-
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -71,38 +68,13 @@ class FiftyFiveButtonBase(CoordinatorEntity[FiftyFiveCoordinator], ButtonEntity)
         entity_category: EntityCategory | None = None,
     ) -> None:
         """Initialize button."""
-        super().__init__(coordinator)
-        self._spot_id = spot_id
+        super().__init__(coordinator, spot_id)
         self._button_type = button_type
         self._attr_unique_id = f"{spot_id}_{button_type}"
         self._attr_translation_key = translation_key
         self._attr_icon = icon
         if entity_category:
             self._attr_entity_category = entity_category
-
-        station_data = coordinator.data.get(spot_id)
-        station_name = (
-            station_data.station.display_name
-            if station_data
-            else f"Charge Station {spot_id}"
-        )
-        mfg = station_data.station.manufacturer if station_data else None
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, spot_id)},
-            name=station_name,
-            manufacturer=mfg.vendor if mfg and mfg.vendor else "50five / LMS",
-            model=mfg.model if mfg and mfg.model else "Charging Station",
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if button is available."""
-        return (
-            super().available
-            and self.coordinator.data is not None
-            and self._spot_id in self.coordinator.data
-        )
 
     async def _execute_action(self, action_coro) -> None:
         """Execute action and schedule non-blocking background refresh."""

@@ -5,17 +5,15 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import CURRENCY_EURO, EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DEFAULT_HCC_TARIFF_MAX,
     DEFAULT_HCC_TARIFF_MIN,
-    DOMAIN,
     HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES,
 )
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .entity import FiftyFiveEntity
 
 
 async def async_setup_entry(
@@ -51,12 +49,9 @@ async def async_setup_entry(
     )
 
 
-class FiftyFiveHccTariffNumber(
-    CoordinatorEntity[FiftyFiveCoordinator], NumberEntity
-):
+class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
     """Representation of a 50five HCC tariff."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "hcc_tariff"
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:currency-eur"
@@ -73,42 +68,10 @@ class FiftyFiveHccTariffNumber(
         tariff_max: float,
     ) -> None:
         """Initialize the HCC tariff number."""
-        super().__init__(coordinator)
-        self._spot_id = spot_id
+        super().__init__(coordinator, spot_id)
         self._attr_native_min_value = tariff_min
         self._attr_native_max_value = tariff_max
         self._attr_unique_id = f"{spot_id}_hcc_tariff"
-
-        station_data = coordinator.data.get(spot_id)
-        station_name = (
-            station_data.station.display_name
-            if station_data
-            else f"Charge Station {spot_id}"
-        )
-        manufacturer = station_data.station.manufacturer if station_data else None
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, spot_id)},
-            name=station_name,
-            manufacturer=(
-                manufacturer.vendor
-                if manufacturer and manufacturer.vendor
-                else "50five / LMS"
-            ),
-            model=(
-                manufacturer.model
-                if manufacturer and manufacturer.model
-                else "Charging Station"
-            ),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return whether the station is available."""
-        return (
-            super().available
-            and self.coordinator.data is not None
-            and self._spot_id in self.coordinator.data
-        )
 
     @property
     def native_value(self) -> float | None:
