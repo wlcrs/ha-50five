@@ -192,6 +192,11 @@
       "name": "Stoppen met laden",
       "description": "Stop de huidige laadsessie."
     }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "Er zijn geen geldige 50five-laadentiteiten geselecteerd."
+    }
   }
 }
 

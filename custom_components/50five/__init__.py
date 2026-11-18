@@ -7,8 +7,10 @@ import logging
 import re
 import uuid
 
+import voluptuous as vol
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -106,6 +108,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         """Start charging on targeted channels."""
         card_id = call.data.get("card_id")
         targets = await _async_extract_targets(hass, call)
+        if not targets:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_valid_targets",
+            )
         coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
 
         for coordinator, spot_id, channel_id in targets:
@@ -124,6 +131,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def async_handle_stop_charging(call: ServiceCall) -> None:
         """Stop charging on targeted channels."""
         targets = await _async_extract_targets(hass, call)
+        if not targets:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_valid_targets",
+            )
         coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
 
         for coordinator, spot_id, channel_id in targets:
@@ -133,8 +145,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         for coordinator in coordinators_to_refresh:
             await coordinator.async_request_refresh()
 
-    hass.services.async_register(DOMAIN, "start_charging", async_handle_start_charging)
-    hass.services.async_register(DOMAIN, "stop_charging", async_handle_stop_charging)
+    hass.services.async_register(
+        DOMAIN,
+        "start_charging",
+        async_handle_start_charging,
+        schema=cv.make_entity_service_schema({vol.Optional("card_id"): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "stop_charging",
+        async_handle_stop_charging,
+        schema=cv.make_entity_service_schema({}),
+    )
 
     return True
 

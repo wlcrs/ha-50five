@@ -192,5 +192,10 @@
       "name": "Stop charging",
       "description": "Stop the current charging session."
     }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "No valid 50five charging entities were targeted."
+    }
   }
 }

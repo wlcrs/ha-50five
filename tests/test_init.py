@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 const = importlib.import_module("custom_components.50five.const")
@@ -269,3 +271,26 @@ async def test_services_with_sensor_entity_target(
     mock_api_client.start_charging.assert_called_once_with(
         MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
     )
+
+
+async def test_services_raise_validation_error_when_no_valid_targets(
+    hass: HomeAssistant,
+) -> None:
+    """Test services raise ServiceValidationError when no valid targets match."""
+    await async_setup(hass, {})
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "start_charging",
+            {"entity_id": "switch.non_existent"},
+            blocking=True,
+        )
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "stop_charging",
+            {"entity_id": "switch.non_existent"},
+            blocking=True,
+        )
