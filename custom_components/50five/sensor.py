@@ -266,6 +266,13 @@ class FiftyFiveBaseSensor(FiftyFiveEntity, SensorEntity):
         """Initialize base sensor."""
         super().__init__(coordinator, spot_id)
         self.entity_description = description
+        station_data = coordinator.data.get(spot_id) if coordinator.data else None
+        if station_data:
+            currency = station_data.currency
+            if description.key == "hcc_tariff":
+                self._attr_native_unit_of_measurement = f"{currency}/kWh"
+            elif description.key in ("session_cost", "last_transaction_cost"):
+                self._attr_native_unit_of_measurement = currency
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

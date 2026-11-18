@@ -83,6 +83,9 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
         self._attr_native_min_value = tariff_min
         self._attr_native_max_value = tariff_max
         self._attr_unique_id = f"{spot_id}_hcc_tariff"
+        station_data = coordinator.data.get(spot_id) if coordinator.data else None
+        if station_data:
+            self._attr_native_unit_of_measurement = f"{station_data.currency}/kWh"
 
     @property
     def native_value(self) -> float | None:

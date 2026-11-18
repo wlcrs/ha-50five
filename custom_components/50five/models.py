@@ -420,6 +420,18 @@ class StationData(_Model):
         """Return the VAT percentage for this station's tariff."""
         return round((self.vat_multiplier - 1.0) * 100, 2)
 
+    @property
+    def currency(self) -> str:
+        """Return the station's display currency symbol or ISO code, defaulting to €."""
+        if (
+            self.station.location
+            and self.station.location.country_details.currency
+            and self.station.location.country_details.currency.code
+        ):
+            code = self.station.location.country_details.currency.code
+            return "€" if code == "EUR" else code
+        return "€"
+
     def get_channel_id(self, channel_no: int = 1) -> str | None:
         """Resolve the GraphQL channel ID for a given channel number."""
         ch = self.channels.get(channel_no)
