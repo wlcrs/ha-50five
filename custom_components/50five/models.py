@@ -143,12 +143,12 @@ class PriceElement(_Model):
 class ActiveTransaction(_Model):
     """Selected fields from GraphQL ``Transaction`` via ``lmsActiveTransaction``."""
 
-    update_date: str | None = None
+    update_date: AwareDatetime | None = None
     address: RedactedStr | None = None
     zip_code: RedactedStr | None = None
     city: RedactedStr | None = None
     energy_delivered: float = 0.0
-    start_date: str | None = None
+    start_date: AwareDatetime | None = None
     country_code: str | None = None
     currency: str | None = None
     total_amount: float = 0.0

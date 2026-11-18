@@ -62,7 +62,6 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
 
     _attr_translation_key = "hcc_tariff"
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:currency-eur"
     _attr_mode = NumberMode.BOX
     _attr_native_step = 0.0001
     _attr_native_unit_of_measurement = f"{CURRENCY_EURO}/kWh"
@@ -87,6 +86,8 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
         station_data = coordinator.data.get(spot_id) if coordinator.data else None
         if station_data:
             self._attr_native_unit_of_measurement = f"{station_data.currency}/kWh"
+            if station_data.currency == CURRENCY_EURO:
+                self._attr_icon = "mdi:currency-eur"
 
     @property
     def native_value(self) -> float | None:

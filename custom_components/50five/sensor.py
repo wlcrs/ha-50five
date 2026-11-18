@@ -108,7 +108,6 @@ CHANNEL_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         state_class=SensorStateClass.TOTAL_INCREASING,
-        icon="mdi:battery-charging",
         value_fn=_get_session_energy_kwh,
     ),
     FiftyFiveSensorEntityDescription(
@@ -118,7 +117,6 @@ CHANNEL_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_unit_of_measurement=UnitOfTime.HOURS,
         suggested_display_precision=2,
-        icon="mdi:timer",
         value_fn=_get_session_duration,
     ),
     FiftyFiveSensorEntityDescription(
@@ -126,7 +124,6 @@ CHANNEL_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="session_cost",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=CURRENCY_EURO,
-        icon="mdi:cash",
         value_fn=_get_session_cost,
     ),
 )
@@ -148,7 +145,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         state_class=SensorStateClass.TOTAL,
-        icon="mdi:lightning-bolt-circle",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.total_energy if data.station.last_transaction else None
         ),
@@ -158,7 +154,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="last_transaction_duration",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.HOURS,
-        icon="mdi:timer-sand",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.total_duration if data.station.last_transaction else None
         ),
@@ -168,7 +163,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="last_transaction_idle_time",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.HOURS,
-        icon="mdi:timer-pause-outline",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.total_idle_time if data.station.last_transaction else None
         ),
@@ -177,7 +171,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         key="last_transaction_start_time",
         translation_key="last_transaction_start_time",
         device_class=SensorDeviceClass.TIMESTAMP,
-        icon="mdi:clock-start",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.start_date if data.station.last_transaction else None
         ),
@@ -186,7 +179,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         key="last_transaction_end_time",
         translation_key="last_transaction_end_time",
         device_class=SensorDeviceClass.TIMESTAMP,
-        icon="mdi:clock-end",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.last_update_date if data.station.last_transaction else None
         ),
@@ -196,7 +188,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         translation_key="last_transaction_cost",
         device_class=SensorDeviceClass.MONETARY,
         native_unit_of_measurement=CURRENCY_EURO,
-        icon="mdi:cash-check",
         value_fn=lambda data, _ch: (
             data.station.last_transaction.total_cost if data.station.last_transaction else None
         ),
