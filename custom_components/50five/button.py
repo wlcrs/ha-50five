@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from homeassistant.components.button import ButtonEntity
@@ -10,7 +9,6 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import ACTION_SETTLE_DELAY_SEC
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
 from .entity import FiftyFiveEntity
 
@@ -85,12 +83,7 @@ class FiftyFiveButtonBase(FiftyFiveEntity, ButtonEntity):
                 self._spot_id,
             )
             await action_coro
-
-            async def _delayed_refresh() -> None:
-                await asyncio.sleep(ACTION_SETTLE_DELAY_SEC)
-                await self.coordinator.async_request_refresh()
-
-            self.hass.async_create_task(_delayed_refresh())
+            self._schedule_delayed_refresh()
         except Exception:
             _LOGGER.exception("Failed to execute %s", self._button_type)
             raise

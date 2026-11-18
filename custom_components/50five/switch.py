@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -10,10 +9,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    ACTION_SETTLE_DELAY_SEC,
-    CONF_CARD_ID,
-)
+from .const import CONF_CARD_ID
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
 from .entity import FiftyFiveEntity
 from .models import GlobalStatus
@@ -119,15 +115,9 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
         """Resolve the GraphQL channel ID."""
         return self.coordinator.get_channel_id(self._spot_id, self._channel_no)
 
-    async def _async_schedule_refresh(self) -> None:
-        """Schedule non-blocking deferred refresh to settle hardware state."""
-
-        async def _delayed_refresh() -> None:
-            await asyncio.sleep(ACTION_SETTLE_DELAY_SEC)
-            self._optimistic_is_on = None
-            await self.coordinator.async_request_refresh()
-
-        self.hass.async_create_task(_delayed_refresh())
+    def _clear_optimistic_state(self) -> None:
+        """Clear optimistic switch state before coordinator refresh."""
+        self._optimistic_is_on = None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start charging session on this channel with immediate UI feedback."""
@@ -152,7 +142,7 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
                 card=self._card_id,
             )
             # 3. Schedule non-blocking background refresh to confirm state from LMS backend
-            await self._async_schedule_refresh()
+            self._schedule_delayed_refresh(self._clear_optimistic_state)
         except Exception:
             _LOGGER.exception("Failed to start charging on %s", self._spot_id)
             self._optimistic_is_on = None
@@ -180,7 +170,7 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
                 channel_id=channel_id,
             )
             # 3. Schedule non-blocking background refresh to confirm state from LMS backend
-            await self._async_schedule_refresh()
+            self._schedule_delayed_refresh(self._clear_optimistic_state)
         except Exception:
             _LOGGER.exception("Failed to stop charging on %s", self._spot_id)
             self._optimistic_is_on = None
