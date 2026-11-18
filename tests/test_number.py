@@ -1,5 +1,6 @@
 """Tests for the 50five number platform."""
 
+import importlib
 from unittest.mock import AsyncMock
 
 from homeassistant.components.number import ATTR_VALUE, DOMAIN as NUMBER_DOMAIN
@@ -8,6 +9,10 @@ from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from .const import MOCK_STATION_ID
+
+FiftyFiveApiError = importlib.import_module(
+    "custom_components.50five.exceptions"
+).FiftyFiveApiError
 
 
 async def test_hcc_tariff_number_is_not_added_for_belgian_provider_category(
@@ -137,3 +142,24 @@ async def test_hcc_tariff_number_uses_mobile_app_fallback_range(
     assert state is not None
     assert state.attributes["min"] == 0.0001
     assert state.attributes["max"] == 0.67
+
+
+async def test_hcc_tariff_number_falls_back_on_range_api_error(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test number setup falls back to default range on FiftyFiveError."""
+    mock_api_client.get_reimbursement_tariff_range.side_effect = FiftyFiveApiError(
+        "temporary error"
+    )
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = er.async_get(hass).async_get_entity_id(
+        NUMBER_DOMAIN,
+        "50five",
+        f"{MOCK_STATION_ID}_hcc_tariff",
+    )
+    assert entity_id is not None
