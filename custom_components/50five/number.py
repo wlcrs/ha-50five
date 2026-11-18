@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import CURRENCY_EURO, EntityCategory
 from homeassistant.core import HomeAssistant
@@ -17,9 +15,6 @@ from .const import (
 )
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
 from .entity import FiftyFiveEntity
-from .exceptions import FiftyFiveError
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -37,13 +32,7 @@ async def async_setup_entry(
     ):
         return
 
-    try:
-        tariff_range = await coordinator.client.get_reimbursement_tariff_range()
-    except FiftyFiveError as err:
-        _LOGGER.warning(
-            "Could not fetch reimbursement tariff range, using defaults: %s", err
-        )
-        tariff_range = None
+    tariff_range = coordinator.reimbursement_tariff_range
     raw_min = (
         tariff_range.min
         if tariff_range and tariff_range.min is not None

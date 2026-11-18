@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import timedelta
@@ -12,9 +13,20 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FiftyFiveApiClient
-from .const import CHARGING_OPTIMISTIC_GRACE_SECONDS, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CHARGING_OPTIMISTIC_GRACE_SECONDS,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES,
+)
 from .exceptions import FiftyFiveAuthError, FiftyFiveError
-from .models import ActiveTransaction, ChargeStation, StationData, TransactionCollection
+from .models import (
+    ActiveTransaction,
+    ChargeStation,
+    StationData,
+    TariffRange,
+    TransactionCollection,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,9 +67,15 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
         self.client = client
-        self.charge_stations: list[ChargeStation] = []
         self.provider_category: str | None = None
+        self.reimbursement_tariff_range: TariffRange | None = None
+        self._tariff_range_fetched = False
         self._optimistic_charging: dict[tuple[str, str], tuple[bool, float]] = {}
+
+    @property
+    def charge_stations(self) -> list[ChargeStation]:
+        """Return the list of charge stations from the latest coordinator data."""
+        return [sd.station for sd in self.data.values()] if self.data else []
 
     def set_optimistic_charging_state(
         self,
@@ -107,16 +125,60 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 return ch_id
         return str(channel_no)
 
+    async def _async_fetch_station_transactions(
+        self, station: ChargeStation
+    ) -> ChargeStation:
+        """Fetch recent completed transactions for a station if not already attached."""
+        if not station.id or (station.transactions and station.transactions.items):
+            return station
+        try:
+            txs = await self.client.get_charge_station_transactions(station.id)
+            if txs:
+                return station.model_copy(
+                    update={"transactions": TransactionCollection(items=txs)}
+                )
+        except FiftyFiveError as tx_err:
+            _LOGGER.warning(
+                "Could not fetch recent transactions for station %s: %s",
+                station.id,
+                tx_err,
+            )
+        except Exception as tx_err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Unexpected error fetching transactions for station %s: %s",
+                station.id,
+                tx_err,
+            )
+        return station
+
     async def _async_update_data(self) -> dict[str, StationData]:
         """Fetch charge stations and active transaction data from GraphQL API."""
         try:
             vat_multiplier = await self.client.get_vat_multiplier()
             self.provider_category = self.client.provider_category
-            # Query all customer charge stations (returns list[ChargeStation])
-            stations = await self.client.get_customer_charge_stations()
-            self.charge_stations = stations or []
 
-            if not self.charge_stations:
+            if (
+                not self._tariff_range_fetched
+                and isinstance(self.provider_category, str)
+                and self.provider_category.strip().upper()
+                not in HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES
+            ):
+                self._tariff_range_fetched = True
+                try:
+                    self.reimbursement_tariff_range = (
+                        await self.client.get_reimbursement_tariff_range()
+                    )
+                except FiftyFiveError as err:
+                    _LOGGER.warning(
+                        "Could not fetch reimbursement tariff range, using defaults: %s",
+                        err,
+                    )
+                    self.reimbursement_tariff_range = None
+
+            # Query all customer charge stations (returns list[ChargeStation])
+            stations = await self.client.get_customer_charge_stations() or []
+
+            if not stations:
                 _LOGGER.warning("No charge stations found for this account")
                 return {}
 
@@ -127,49 +189,27 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
             except FiftyFiveError as tx_err:
                 _LOGGER.debug("Could not fetch active transaction: %s", tx_err)
 
+            valid_stations = [station for station in stations if station.id]
+            enriched_stations = await asyncio.gather(
+                *(
+                    self._async_fetch_station_transactions(station)
+                    for station in valid_stations
+                )
+            )
+
             data: dict[str, StationData] = {}
-
-            for station in self.charge_stations:
-                station_id = station.id
-                if not station_id:
-                    continue
-
+            for station_to_store in enriched_stations:
                 channels_by_num = {
-                    ch.channel_no: ch for ch in station.channels or []
+                    ch.channel_no: ch for ch in station_to_store.channels or []
                 }
-
-                # Resiliently fetch completed transactions per station if not already attached
-                station_to_store = station
-                if not station.transactions or not station.transactions.items:
-                    try:
-                        txs = await self.client.get_charge_station_transactions(
-                            station_id
-                        )
-                        if txs:
-                            station_to_store = station.model_copy(
-                                update={
-                                    "transactions": TransactionCollection(items=txs)
-                                }
-                            )
-                    except FiftyFiveError as tx_err:
-                        _LOGGER.warning(
-                            "Could not fetch recent transactions for station %s: %s",
-                            station_id,
-                            tx_err,
-                        )
-                    except Exception as tx_err:  # noqa: BLE001
-                        _LOGGER.debug(
-                            "Unexpected error fetching transactions for station %s: %s",
-                            station_id,
-                            tx_err,
-                        )
-
-                data[station_id] = StationData(
+                data[station_to_store.id] = StationData(
                     station=station_to_store,
                     channels=channels_by_num,
                     active_transaction=(
                         active_transaction
-                        if _station_matches_active_tx(station_to_store, active_transaction)
+                        if _station_matches_active_tx(
+                            station_to_store, active_transaction
+                        )
                         else None
                     ),
                     vat_multiplier=vat_multiplier,
