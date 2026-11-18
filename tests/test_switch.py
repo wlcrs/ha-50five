@@ -187,6 +187,7 @@ async def test_switch_optimistic_grace_window_and_expiry(
     mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
     mock_charge_stations,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test switch holds optimistic ON across polls for 4 minutes, then expires."""
     mock_config_entry.add_to_hass(hass)
@@ -212,9 +213,11 @@ async def test_switch_optimistic_grace_window_and_expiry(
 
         # Coordinator poll at +60s while backend still reports AVAILABLE -> stays ON
         now[0] = 1060.0
-        await mock_config_entry.runtime_data.async_refresh()
-        await hass.async_block_till_done()
+        with caplog.at_level("INFO"):
+            await mock_config_entry.runtime_data.async_refresh()
+            await hass.async_block_till_done()
         assert hass.states.get(entity_id).state == STATE_ON
+        assert "Overriding backend charging state" in caplog.text
 
         # Grace window expires at +240s without backend confirmation -> reverts to OFF
         now[0] = 1240.0

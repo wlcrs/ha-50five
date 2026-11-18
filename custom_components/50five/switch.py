@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_CARD_ID
@@ -115,6 +115,26 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
             backend_is_on=backend_on,
         )
         return optimistic if optimistic is not None else backend_on
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Log when a retrieved backend state is overridden by optimistic state."""
+        channel_id = self._get_channel_id()
+        backend_on = self._backend_is_on()
+        optimistic = self.coordinator.get_optimistic_charging_state(
+            self._spot_id,
+            channel_id,
+            backend_is_on=backend_on,
+        )
+        if optimistic is not None and optimistic != backend_on:
+            _LOGGER.info(
+                "Overriding backend charging state (%s) with optimistic state (%s) for station %s, channel %s",
+                backend_on,
+                optimistic,
+                self._spot_id,
+                channel_id,
+            )
+        super()._handle_coordinator_update()
 
     def _get_channel_id(self) -> str:
         """Resolve the GraphQL channel ID."""
