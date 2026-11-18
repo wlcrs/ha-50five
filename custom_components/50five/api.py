@@ -706,6 +706,11 @@ class FiftyFiveApiClient:
                 raise FiftyFiveConnectionError(
                     f"Cannot connect to 50five endpoint: {err}"
                 ) from err
+            except (aiohttp.ClientError, TimeoutError) as err:
+                _LOGGER.error("Authentication connection error: %s", err)
+                raise FiftyFiveConnectionError(
+                    f"Cannot connect to 50five endpoint: {err}"
+                ) from err
             except Exception as err:
                 err_str = str(err).lower()
                 if any(
@@ -721,7 +726,7 @@ class FiftyFiveApiClient:
                 ):
                     raise FiftyFiveAuthError(f"Authentication failed: {err}") from err
                 _LOGGER.exception("Authentication request error")
-                raise FiftyFiveAuthError(f"Authentication failed: {err}") from err
+                raise FiftyFiveApiError(f"Authentication failed: {err}") from err
 
     async def get_vat_multiplier(self) -> float:
         """Retrieve VAT multiplier based on customer providerCategory (matching mobile app)."""

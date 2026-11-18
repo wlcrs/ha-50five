@@ -759,3 +759,28 @@ async def test_authenticate_skips_relogin_when_token_already_rotated() -> None:
 
     assert result is True
     mock_exec.assert_not_awaited()
+
+
+async def test_authenticate_non_auth_exception_does_not_raise_auth_error() -> None:
+    """Test unexpected non-auth exceptions during login do not trigger reauth."""
+    client = FiftyFiveApiClient(username=MOCK_USERNAME, password=MOCK_PASSWORD)
+
+    with (
+        patch(
+            "gql.Client.execute_async",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError("timed out"),
+        ),
+        pytest.raises(FiftyFiveConnectionError),
+    ):
+        await client.authenticate()
+
+    with (
+        patch(
+            "gql.Client.execute_async",
+            new_callable=AsyncMock,
+            side_effect=ValueError("unexpected schema"),
+        ),
+        pytest.raises(FiftyFiveApiError),
+    ):
+        await client.authenticate()
