@@ -50,6 +50,8 @@ async def async_setup_entry(
             spot_id,
             round(raw_min * station_data.vat_multiplier, 4),
             round(raw_max * station_data.vat_multiplier, 4),
+            raw_min,
+            raw_max,
         )
         for spot_id, station_data in coordinator.data.items()
     )
@@ -72,11 +74,15 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
         spot_id: str,
         tariff_min: float,
         tariff_max: float,
+        raw_min: float = DEFAULT_HCC_TARIFF_MIN,
+        raw_max: float = DEFAULT_HCC_TARIFF_MAX,
     ) -> None:
         """Initialize the HCC tariff number."""
         super().__init__(coordinator, spot_id)
         self._attr_native_min_value = tariff_min
         self._attr_native_max_value = tariff_max
+        self._raw_min = raw_min
+        self._raw_max = raw_max
         self._attr_unique_id = f"{spot_id}_hcc_tariff"
         station_data = coordinator.data.get(spot_id) if coordinator.data else None
         if station_data:
@@ -96,6 +102,9 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
         vat_multiplier = (
             station_data.vat_multiplier if station_data else DEFAULT_VAT_MULTIPLIER
         )
-        net_tariff = round(value / vat_multiplier, 4)
+        net_tariff = min(
+            self._raw_max,
+            max(self._raw_min, round(value / vat_multiplier, 4)),
+        )
         await self.coordinator.client.update_hcc_tariff(self._spot_id, net_tariff)
         await self.coordinator.async_request_refresh()

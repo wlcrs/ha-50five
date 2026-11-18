@@ -163,3 +163,34 @@ async def test_hcc_tariff_number_falls_back_on_range_api_error(
         f"{MOCK_STATION_ID}_hcc_tariff",
     )
     assert entity_id is not None
+
+
+async def test_hcc_tariff_number_clamps_net_value_to_raw_range(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test boundary VAT-inclusive values clamp to the backend raw min/max."""
+    mock_api_client.get_vat_multiplier.return_value = 1.081
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        NUMBER_DOMAIN,
+        "50five",
+        f"{MOCK_STATION_ID}_hcc_tariff",
+    )
+    assert entity_id is not None
+    registry.async_update_entity(entity_id, disabled_by=None)
+    await hass.config_entries.async_reload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        "set_value",
+        {"entity_id": entity_id, ATTR_VALUE: 0.8107},
+        blocking=True,
+    )
+    mock_api_client.update_hcc_tariff.assert_awaited_once_with(MOCK_STATION_ID, 0.75)
