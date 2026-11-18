@@ -784,3 +784,28 @@ async def test_authenticate_non_auth_exception_does_not_raise_auth_error() -> No
         pytest.raises(FiftyFiveApiError),
     ):
         await client.authenticate()
+
+
+async def test_get_vat_multiplier_does_not_cache_on_transient_error() -> None:
+    """Test transient errors in get_vat_multiplier do not permanently cache NL VAT."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        customer_id="cust_12345",
+        access_token=MOCK_ACCESS_TOKEN,
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    with patch.object(
+        client,
+        "_execute_query",
+        new_callable=AsyncMock,
+        side_effect=[
+            FiftyFiveConnectionError("temporary outage"),
+            GetCustomerByIdResponse.model_validate(
+                {"getCustomerById": {"id": "cust_12345", "providerCategory": "BE"}}
+            ),
+        ],
+    ):
+        assert await client.get_vat_multiplier() == 1.21
+        assert await client.get_vat_multiplier() == 1.06

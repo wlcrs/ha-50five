@@ -760,15 +760,19 @@ class FiftyFiveApiClient:
                         self._vat_multiplier,
                     )
                     return self._vat_multiplier
+                self._vat_multiplier = DEFAULT_VAT_MULTIPLIER
+                return self._vat_multiplier
             except FiftyFiveError as err:
                 _LOGGER.warning(
                     "Could not fetch customer providerCategory for VAT calculation: %s",
                     err,
                 )
+                return DEFAULT_VAT_MULTIPLIER
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
                     "Unexpected error fetching customer providerCategory: %s", err
                 )
+                return DEFAULT_VAT_MULTIPLIER
 
         self._vat_multiplier = DEFAULT_VAT_MULTIPLIER
         return self._vat_multiplier
