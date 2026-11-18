@@ -1,0 +1,201 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit 50five verbinden",
+        "description": "Geben Sie Ihre Kontodaten ein.",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort"
+        }
+      },
+      "card": {
+        "title": "Ladekarte auswählen",
+        "description": "Wählen Sie die Standard-Ladekarte für Ladevorgänge aus Home Assistant aus. Sie können diesen Schritt überspringen, wenn Sie jetzt keine Ladekarte festlegen möchten.",
+        "data": {
+          "card_id": "Ladekarte",
+          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte Ladekarte in meinem Besitz befindet und ich der Eigentümer bin."
+        }
+      },
+      "reconfigure": {
+        "title": "50five neu konfigurieren",
+        "description": "Aktualisieren Sie Ihre Zugangsdaten. Lassen Sie das Passwort leer, um das aktuelle Passwort beizubehalten.",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort (leer lassen, um aktuelles beizubehalten)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneut bei 50five authentifizieren",
+        "description": "Bitte geben Sie Ihr Passwort für das Konto {username} ein.",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültiger Benutzername oder ungültiges Passwort",
+      "cannot_connect": "Verbindung zum GraphQL-API-Endpunkt nicht möglich",
+      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte bestätigen, um fortzufahren",
+      "unknown": "Unerwarteter Fehler aufgetreten"
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits konfiguriert",
+      "reconfigure_successful": "Konfiguration erfolgreich aktualisiert",
+      "reauth_successful": "Erneute Authentifizierung war erfolgreich"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "50five-Optionen",
+        "description": "Wählen Sie die Standard-Ladekarte zum Starten von Ladevorgängen aus.",
+        "data": {
+          "card_id": "Ladekarte",
+          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte Ladekarte in meinem Besitz befindet und ich der Eigentümer bin."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte bestätigen, um fortzufahren",
+      "unknown": "Unerwarteter Fehler aufgetreten"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "HCC-Status"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "available": "Verfügbar",
+          "charging": "Lädt",
+          "occupied": "Belegt",
+          "faulted": "Fehler",
+          "unavailable": "Nicht verfügbar",
+          "suspended_evse": "Pausiert (Ladestation)",
+          "suspended_ev": "Pausiert (Fahrzeug)",
+          "preparing": "Vorbereitung",
+          "finishing": "Abschluss",
+          "reserved": "Reserviert",
+          "unknown": "Unbekannt"
+        }
+      },
+      "session_energy": {
+        "name": "Sitzungsenergie"
+      },
+      "session_time": {
+        "name": "Sitzungsdauer"
+      },
+      "session_cost": {
+        "name": "Sitzungskosten"
+      },
+      "hcc_tariff": {
+        "name": "HCC-Tarif"
+      },
+      "last_transaction_energy": {
+        "name": "Energie letzte Sitzung"
+      },
+      "last_transaction_duration": {
+        "name": "Dauer letzte Sitzung"
+      },
+      "last_transaction_idle_time": {
+        "name": "Leerlaufzeit letzte Sitzung"
+      },
+      "last_transaction_start_time": {
+        "name": "Start letzte Sitzung"
+      },
+      "last_transaction_end_time": {
+        "name": "Ende letzte Sitzung"
+      },
+      "last_transaction_cost": {
+        "name": "Kosten letzte Sitzung"
+      },
+      "last_transaction_card": {
+        "name": "Ladekarte letzte Sitzung"
+      },
+      "channel_status": {
+        "name": "Kanal {channel} Status",
+        "state": {
+          "available": "Verfügbar",
+          "charging": "Lädt",
+          "occupied": "Belegt",
+          "faulted": "Fehler",
+          "unavailable": "Nicht verfügbar",
+          "suspended_evse": "Pausiert (Ladestation)",
+          "suspended_ev": "Pausiert (Fahrzeug)",
+          "preparing": "Vorbereitung",
+          "finishing": "Abschluss",
+          "reserved": "Reserviert",
+          "unknown": "Unbekannt"
+        }
+      },
+      "channel_session_energy": {
+        "name": "Kanal {channel} Sitzungsenergie"
+      },
+      "channel_session_time": {
+        "name": "Kanal {channel} Sitzungsdauer"
+      },
+      "channel_session_cost": {
+        "name": "Kanal {channel} Sitzungskosten"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Laden mit Karte {card_id}"
+      },
+      "channel_charging": {
+        "name": "Kanal {channel} laden mit Karte {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Status aktualisieren"
+      },
+      "soft_reset": {
+        "name": "Soft-Reset"
+      },
+      "hard_reset": {
+        "name": "Hard-Reset"
+      },
+      "reset_cache": {
+        "name": "Cache zurücksetzen"
+      },
+      "unlock_connector": {
+        "name": "Stecker entriegeln"
+      },
+      "channel_unlock_connector": {
+        "name": "Kanal {channel} Stecker entriegeln"
+      }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "HCC-Tarif (ohne MwSt.)"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Ladevorgang starten",
+      "description": "Startet einen Ladevorgang mit einer optionalen RFID-Karten-ID.",
+      "fields": {
+        "card_id": {
+          "name": "RFID-Karten-ID",
+          "description": "Optionale RFID-Karten-ID für diesen Ladevorgang. Falls nicht angegeben, wird die konfigurierte Standardkarte verwendet."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Ladevorgang stoppen",
+      "description": "Stoppt den aktuellen Ladevorgang."
+    }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "Es wurden keine gültigen 50five-Ladeentitäten ausgewählt."
+    }
+  }
+}

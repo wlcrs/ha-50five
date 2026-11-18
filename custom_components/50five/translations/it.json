@@ -1,0 +1,201 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connetti a 50five",
+        "description": "Inserisci le credenziali del tuo account.",
+        "data": {
+          "username": "E-mail",
+          "password": "Password"
+        }
+      },
+      "card": {
+        "title": "Seleziona tessera di ricarica",
+        "description": "Seleziona la tessera di ricarica predefinita per le sessioni di ricarica da Home Assistant. Puoi saltare questo passaggio se non desideri configurare una tessera ora.",
+        "data": {
+          "card_id": "Tessera di ricarica",
+          "confirm_ownership": "Confermo che la tessera di ricarica selezionata è in mio possesso e che ne sono il proprietario."
+        }
+      },
+      "reconfigure": {
+        "title": "Riconfigura 50five",
+        "description": "Aggiorna le credenziali di connessione. Lascia vuota la password per mantenere quella attuale.",
+        "data": {
+          "username": "E-mail",
+          "password": "Password (lascia vuoto per mantenere l'attuale)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Riautenticazione con 50five",
+        "description": "Inserisci la password per l'account {username}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nome utente o password non validi",
+      "cannot_connect": "Impossibile connettersi all'endpoint API GraphQL",
+      "must_confirm_ownership": "Devi confermare di essere il proprietario della tessera selezionata per procedere",
+      "unknown": "Si è verificato un errore imprevisto"
+    },
+    "abort": {
+      "already_configured": "Questo account è già configurato",
+      "reconfigure_successful": "Configurazione aggiornata con successo",
+      "reauth_successful": "Riautenticazione riuscita"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni 50five",
+        "description": "Seleziona la tessera di ricarica predefinita per avviare le sessioni di ricarica.",
+        "data": {
+          "card_id": "Tessera di ricarica",
+          "confirm_ownership": "Confermo che la tessera di ricarica selezionata è in mio possesso e che ne sono il proprietario."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "Devi confermare di essere il proprietario della tessera selezionata per procedere",
+      "unknown": "Si è verificato un errore imprevisto"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "Stato HCC"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Stato",
+        "state": {
+          "available": "Disponibile",
+          "charging": "In carica",
+          "occupied": "Occupato",
+          "faulted": "In errore",
+          "unavailable": "Non disponibile",
+          "suspended_evse": "Sospeso (Colonnina)",
+          "suspended_ev": "Sospeso (Veicolo)",
+          "preparing": "Preparazione",
+          "finishing": "Completamento",
+          "reserved": "Riservato",
+          "unknown": "Sconosciuto"
+        }
+      },
+      "session_energy": {
+        "name": "Energia sessione"
+      },
+      "session_time": {
+        "name": "Durata sessione"
+      },
+      "session_cost": {
+        "name": "Costo sessione"
+      },
+      "hcc_tariff": {
+        "name": "Tariffa HCC"
+      },
+      "last_transaction_energy": {
+        "name": "Energia ultima sessione"
+      },
+      "last_transaction_duration": {
+        "name": "Durata ultima sessione"
+      },
+      "last_transaction_idle_time": {
+        "name": "Tempo di inattività ultima sessione"
+      },
+      "last_transaction_start_time": {
+        "name": "Inizio ultima sessione"
+      },
+      "last_transaction_end_time": {
+        "name": "Fine ultima sessione"
+      },
+      "last_transaction_cost": {
+        "name": "Costo ultima sessione"
+      },
+      "last_transaction_card": {
+        "name": "Tessera ultima sessione"
+      },
+      "channel_status": {
+        "name": "Canale {channel} Stato",
+        "state": {
+          "available": "Disponibile",
+          "charging": "In carica",
+          "occupied": "Occupato",
+          "faulted": "In errore",
+          "unavailable": "Non disponibile",
+          "suspended_evse": "Sospeso (Colonnina)",
+          "suspended_ev": "Sospeso (Veicolo)",
+          "preparing": "Preparazione",
+          "finishing": "Completamento",
+          "reserved": "Riservato",
+          "unknown": "Sconosciuto"
+        }
+      },
+      "channel_session_energy": {
+        "name": "Canale {channel} Energia sessione"
+      },
+      "channel_session_time": {
+        "name": "Canale {channel} Durata sessione"
+      },
+      "channel_session_cost": {
+        "name": "Canale {channel} Costo sessione"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Ricarica con tessera {card_id}"
+      },
+      "channel_charging": {
+        "name": "Canale {channel} ricarica con tessera {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Aggiorna stato"
+      },
+      "soft_reset": {
+        "name": "Riavvio software"
+      },
+      "hard_reset": {
+        "name": "Riavvio hardware"
+      },
+      "reset_cache": {
+        "name": "Reimposta cache"
+      },
+      "unlock_connector": {
+        "name": "Sblocca connettore"
+      },
+      "channel_unlock_connector": {
+        "name": "Canale {channel} Sblocca connettore"
+      }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "Tariffa HCC (IVA esclusa)"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Avvia ricarica",
+      "description": "Avvia una sessione di ricarica con un ID tessera RFID facoltativo.",
+      "fields": {
+        "card_id": {
+          "name": "ID tessera RFID",
+          "description": "ID tessera RFID facoltativo da usare per questa sessione. Se non fornito, viene usata la tessera predefinita configurata."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Ferma ricarica",
+      "description": "Interrompe la sessione di ricarica corrente."
+    }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "Nessuna entità di ricarica 50five valida selezionata."
+    }
+  }
+}

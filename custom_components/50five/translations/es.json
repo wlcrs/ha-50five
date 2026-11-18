@@ -1,0 +1,201 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Conectar con 50five",
+        "description": "Introduce las credenciales de tu cuenta.",
+        "data": {
+          "username": "Correo electrónico",
+          "password": "Contraseña"
+        }
+      },
+      "card": {
+        "title": "Seleccionar tarjeta de carga",
+        "description": "Selecciona la tarjeta de carga predeterminada para las sesiones de carga desde Home Assistant. Puedes omitir este paso si no deseas configurar una tarjeta ahora.",
+        "data": {
+          "card_id": "Tarjeta de carga",
+          "confirm_ownership": "Por la presente confirmo que la tarjeta de carga seleccionada está en mi posesión y que soy su propietario."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurar 50five",
+        "description": "Actualiza tus credenciales de conexión. Deja la contraseña en blanco para mantener la actual.",
+        "data": {
+          "username": "Correo electrónico",
+          "password": "Contraseña (dejar en blanco para mantener la actual)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Volver a autenticar con 50five",
+        "description": "Introduce tu contraseña para la cuenta {username}.",
+        "data": {
+          "password": "Contraseña"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Usuario o contraseña no válidos",
+      "cannot_connect": "No se puede conectar al punto de enlace de la API GraphQL",
+      "must_confirm_ownership": "Debes confirmar la propiedad de la tarjeta seleccionada para continuar",
+      "unknown": "Se ha producido un error inesperado"
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya está configurada",
+      "reconfigure_successful": "Configuración actualizada correctamente",
+      "reauth_successful": "La reautenticación se ha completado correctamente"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de 50five",
+        "description": "Selecciona la tarjeta de carga predeterminada para iniciar sesiones de carga.",
+        "data": {
+          "card_id": "Tarjeta de carga",
+          "confirm_ownership": "Por la presente confirmo que la tarjeta de carga seleccionada está en mi posesión y que soy su propietario."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "Debes confirmar la propiedad de la tarjeta seleccionada para continuar",
+      "unknown": "Se ha producido un error inesperado"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "Estado HCC"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Estado",
+        "state": {
+          "available": "Disponible",
+          "charging": "Cargando",
+          "occupied": "Ocupado",
+          "faulted": "Con fallo",
+          "unavailable": "No disponible",
+          "suspended_evse": "Suspendido (Cargador)",
+          "suspended_ev": "Suspendido (Vehículo)",
+          "preparing": "Preparando",
+          "finishing": "Finalizando",
+          "reserved": "Reservado",
+          "unknown": "Desconocido"
+        }
+      },
+      "session_energy": {
+        "name": "Energía de la sesión"
+      },
+      "session_time": {
+        "name": "Duración de la sesión"
+      },
+      "session_cost": {
+        "name": "Coste de la sesión"
+      },
+      "hcc_tariff": {
+        "name": "Tarifa HCC"
+      },
+      "last_transaction_energy": {
+        "name": "Energía última sesión"
+      },
+      "last_transaction_duration": {
+        "name": "Duración última sesión"
+      },
+      "last_transaction_idle_time": {
+        "name": "Tiempo inactivo última sesión"
+      },
+      "last_transaction_start_time": {
+        "name": "Inicio última sesión"
+      },
+      "last_transaction_end_time": {
+        "name": "Fin última sesión"
+      },
+      "last_transaction_cost": {
+        "name": "Coste última sesión"
+      },
+      "last_transaction_card": {
+        "name": "Tarjeta última sesión"
+      },
+      "channel_status": {
+        "name": "Canal {channel} Estado",
+        "state": {
+          "available": "Disponible",
+          "charging": "Cargando",
+          "occupied": "Ocupado",
+          "faulted": "Con fallo",
+          "unavailable": "No disponible",
+          "suspended_evse": "Suspendido (Cargador)",
+          "suspended_ev": "Suspendido (Vehículo)",
+          "preparing": "Preparando",
+          "finishing": "Finalizando",
+          "reserved": "Reservado",
+          "unknown": "Desconocido"
+        }
+      },
+      "channel_session_energy": {
+        "name": "Canal {channel} Energía de la sesión"
+      },
+      "channel_session_time": {
+        "name": "Canal {channel} Duración de la sesión"
+      },
+      "channel_session_cost": {
+        "name": "Canal {channel} Coste de la sesión"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Cargar con tarjeta {card_id}"
+      },
+      "channel_charging": {
+        "name": "Canal {channel} cargar con tarjeta {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Actualizar estado"
+      },
+      "soft_reset": {
+        "name": "Reinicio suave"
+      },
+      "hard_reset": {
+        "name": "Reinicio forzado"
+      },
+      "reset_cache": {
+        "name": "Restablecer caché"
+      },
+      "unlock_connector": {
+        "name": "Desbloquear conector"
+      },
+      "channel_unlock_connector": {
+        "name": "Canal {channel} Desbloquear conector"
+      }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "Tarifa HCC (sin IVA)"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Iniciar carga",
+      "description": "Inicia una sesión de carga con un ID de tarjeta RFID opcional.",
+      "fields": {
+        "card_id": {
+          "name": "ID de tarjeta RFID",
+          "description": "ID de tarjeta RFID opcional para esta sesión de carga. Si no se indica, se usa la tarjeta predeterminada configurada."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Detener carga",
+      "description": "Detiene la sesión de carga actual."
+    }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "No se seleccionaron entidades de carga de 50five válidas."
+    }
+  }
+}

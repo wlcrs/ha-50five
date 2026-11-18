@@ -1,0 +1,201 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Połącz z 50five",
+        "description": "Wprowadź dane swojego konta.",
+        "data": {
+          "username": "E-mail",
+          "password": "Hasło"
+        }
+      },
+      "card": {
+        "title": "Wybierz kartę ładowania",
+        "description": "Wybierz domyślną kartę ładowania dla sesji ładowania z Home Assistant. Możesz pominąć ten krok, jeśli nie chcesz teraz konfigurować karty.",
+        "data": {
+          "card_id": "Karta ładowania",
+          "confirm_ownership": "Niniejszym potwierdzam, że wybrana karta ładowania znajduje się w moim posiadaniu i jestem jej właścicielem."
+        }
+      },
+      "reconfigure": {
+        "title": "Rekonfiguruj 50five",
+        "description": "Zaktualizuj dane logowania. Pozostaw hasło puste, aby zachować obecne.",
+        "data": {
+          "username": "E-mail",
+          "password": "Hasło (pozostaw puste, aby zachować obecne)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ponowne uwierzytelnianie w 50five",
+        "description": "Wprowadź hasło dla konta {username}.",
+        "data": {
+          "password": "Hasło"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nieprawidłowa nazwa użytkownika lub hasło",
+      "cannot_connect": "Nie można połączyć z punktem końcowym API GraphQL",
+      "must_confirm_ownership": "Musisz potwierdzić własność wybranej karty ładowania, aby kontynuować",
+      "unknown": "Wystąpił nieoczekiwany błąd"
+    },
+    "abort": {
+      "already_configured": "To konto jest już skonfigurowane",
+      "reconfigure_successful": "Konfiguracja została pomyślnie zaktualizowana",
+      "reauth_successful": "Ponowne uwierzytelnianie powiodło się"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje 50five",
+        "description": "Wybierz domyślną kartę ładowania do rozpoczynania sesji ładowania.",
+        "data": {
+          "card_id": "Karta ładowania",
+          "confirm_ownership": "Niniejszym potwierdzam, że wybrana karta ładowania znajduje się w moim posiadaniu i jestem jej właścicielem."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "Musisz potwierdzić własność wybranej karty ładowania, aby kontynuować",
+      "unknown": "Wystąpił nieoczekiwany błąd"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "Status HCC"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "available": "Dostępna",
+          "charging": "Ładowanie",
+          "occupied": "Zajęta",
+          "faulted": "Awaria",
+          "unavailable": "Niedostępna",
+          "suspended_evse": "Wstrzymano (Stacja)",
+          "suspended_ev": "Wstrzymano (Pojazd)",
+          "preparing": "Przygotowanie",
+          "finishing": "Kończenie",
+          "reserved": "Zarezerwowana",
+          "unknown": "Nieznany"
+        }
+      },
+      "session_energy": {
+        "name": "Energia sesji"
+      },
+      "session_time": {
+        "name": "Czas sesji"
+      },
+      "session_cost": {
+        "name": "Koszt sesji"
+      },
+      "hcc_tariff": {
+        "name": "Taryfa HCC"
+      },
+      "last_transaction_energy": {
+        "name": "Energia ostatniej sesji"
+      },
+      "last_transaction_duration": {
+        "name": "Czas trwania ostatniej sesji"
+      },
+      "last_transaction_idle_time": {
+        "name": "Czas bezczynności ostatniej sesji"
+      },
+      "last_transaction_start_time": {
+        "name": "Początek ostatniej sesji"
+      },
+      "last_transaction_end_time": {
+        "name": "Koniec ostatniej sesji"
+      },
+      "last_transaction_cost": {
+        "name": "Koszt ostatniej sesji"
+      },
+      "last_transaction_card": {
+        "name": "Karta ostatniej sesji"
+      },
+      "channel_status": {
+        "name": "Kanał {channel} Status",
+        "state": {
+          "available": "Dostępny",
+          "charging": "Ładowanie",
+          "occupied": "Zajęty",
+          "faulted": "Awaria",
+          "unavailable": "Niedostępny",
+          "suspended_evse": "Wstrzymano (Stacja)",
+          "suspended_ev": "Wstrzymano (Pojazd)",
+          "preparing": "Przygotowanie",
+          "finishing": "Kończenie",
+          "reserved": "Zarezerwowany",
+          "unknown": "Nieznany"
+        }
+      },
+      "channel_session_energy": {
+        "name": "Kanał {channel} Energia sesji"
+      },
+      "channel_session_time": {
+        "name": "Kanał {channel} Czas sesji"
+      },
+      "channel_session_cost": {
+        "name": "Kanał {channel} Koszt sesji"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Ładuj kartą {card_id}"
+      },
+      "channel_charging": {
+        "name": "Kanał {channel} ładuj kartą {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Odśwież status"
+      },
+      "soft_reset": {
+        "name": "Miękki reset"
+      },
+      "hard_reset": {
+        "name": "Twardy reset"
+      },
+      "reset_cache": {
+        "name": "Resetuj pamięć podręczną"
+      },
+      "unlock_connector": {
+        "name": "Odblokuj złącze"
+      },
+      "channel_unlock_connector": {
+        "name": "Kanał {channel} Odblokuj złącze"
+      }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "Taryfa HCC (bez VAT)"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Rozpocznij ładowanie",
+      "description": "Rozpoczyna sesję ładowania z opcjonalnym identyfikatorem karty RFID.",
+      "fields": {
+        "card_id": {
+          "name": "ID karty RFID",
+          "description": "Opcjonalny identyfikator karty RFID dla tej sesji. Jeśli nie podano, używana jest domyślna skonfigurowana karta."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Zatrzymaj ładowanie",
+      "description": "Zatrzymuje bieżącą sesję ładowania."
+    }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "Nie wybrano żadnych prawidłowych encji ładowania 50five."
+    }
+  }
+}

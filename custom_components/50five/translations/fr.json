@@ -1,0 +1,201 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Se connecter à 50five",
+        "description": "Saisissez vos identifiants de compte.",
+        "data": {
+          "username": "E-mail",
+          "password": "Mot de passe"
+        }
+      },
+      "card": {
+        "title": "Sélectionner la carte de recharge",
+        "description": "Sélectionnez la carte de recharge par défaut à utiliser pour les sessions de charge depuis Home Assistant. Vous pouvez ignorer cette étape si vous ne souhaitez pas configurer de carte pour le moment.",
+        "data": {
+          "card_id": "Carte de recharge",
+          "confirm_ownership": "Je confirme par la présente que la carte de recharge sélectionnée est en ma possession et que j'en suis le propriétaire."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurer 50five",
+        "description": "Mettez à jour vos identifiants de connexion. Laissez le mot de passe vide pour conserver le mot de passe actuel.",
+        "data": {
+          "username": "E-mail",
+          "password": "Mot de passe (laisser vide pour conserver l'actuel)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Se réauthentifier auprès de 50five",
+        "description": "Veuillez saisir votre mot de passe pour le compte {username}.",
+        "data": {
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
+      "cannot_connect": "Impossible de se connecter au point de terminaison de l'API GraphQL",
+      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la carte sélectionnée pour continuer",
+      "unknown": "Une erreur inattendue s'est produite"
+    },
+    "abort": {
+      "already_configured": "Ce compte est déjà configuré",
+      "reconfigure_successful": "Configuration mise à jour avec succès",
+      "reauth_successful": "La réauthentification a réussi"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options 50five",
+        "description": "Sélectionnez la carte de recharge par défaut pour démarrer les sessions de charge.",
+        "data": {
+          "card_id": "Carte de recharge",
+          "confirm_ownership": "Je confirme par la présente que la carte de recharge sélectionnée est en ma possession et que j'en suis le propriétaire."
+        }
+      }
+    },
+    "error": {
+      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la carte sélectionnée pour continuer",
+      "unknown": "Une erreur inattendue s'est produite"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "Statut HCC"
+      }
+    },
+    "sensor": {
+      "status": {
+        "name": "Statut",
+        "state": {
+          "available": "Disponible",
+          "charging": "En charge",
+          "occupied": "Occupé",
+          "faulted": "En défaut",
+          "unavailable": "Indisponible",
+          "suspended_evse": "Suspendu (Borne)",
+          "suspended_ev": "Suspendu (Véhicule)",
+          "preparing": "Préparation",
+          "finishing": "Finalisation",
+          "reserved": "Réservé",
+          "unknown": "Inconnu"
+        }
+      },
+      "session_energy": {
+        "name": "Énergie de la session"
+      },
+      "session_time": {
+        "name": "Durée de la session"
+      },
+      "session_cost": {
+        "name": "Coût de la session"
+      },
+      "hcc_tariff": {
+        "name": "Tarif HCC"
+      },
+      "last_transaction_energy": {
+        "name": "Énergie dernière session"
+      },
+      "last_transaction_duration": {
+        "name": "Durée dernière session"
+      },
+      "last_transaction_idle_time": {
+        "name": "Temps d'inactivité dernière session"
+      },
+      "last_transaction_start_time": {
+        "name": "Début dernière session"
+      },
+      "last_transaction_end_time": {
+        "name": "Fin dernière session"
+      },
+      "last_transaction_cost": {
+        "name": "Coût dernière session"
+      },
+      "last_transaction_card": {
+        "name": "Carte dernière session"
+      },
+      "channel_status": {
+        "name": "Canal {channel} Statut",
+        "state": {
+          "available": "Disponible",
+          "charging": "En charge",
+          "occupied": "Occupé",
+          "faulted": "En défaut",
+          "unavailable": "Indisponible",
+          "suspended_evse": "Suspendu (Borne)",
+          "suspended_ev": "Suspendu (Véhicule)",
+          "preparing": "Préparation",
+          "finishing": "Finalisation",
+          "reserved": "Réservé",
+          "unknown": "Inconnu"
+        }
+      },
+      "channel_session_energy": {
+        "name": "Canal {channel} Énergie de la session"
+      },
+      "channel_session_time": {
+        "name": "Canal {channel} Durée de la session"
+      },
+      "channel_session_cost": {
+        "name": "Canal {channel} Coût de la session"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Charger avec la carte {card_id}"
+      },
+      "channel_charging": {
+        "name": "Canal {channel} charger avec la carte {card_id}"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Actualiser le statut"
+      },
+      "soft_reset": {
+        "name": "Redémarrage logiciel"
+      },
+      "hard_reset": {
+        "name": "Redémarrage matériel"
+      },
+      "reset_cache": {
+        "name": "Réinitialiser le cache"
+      },
+      "unlock_connector": {
+        "name": "Déverrouiller le connecteur"
+      },
+      "channel_unlock_connector": {
+        "name": "Canal {channel} Déverrouiller le connecteur"
+      }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "Tarif HCC (hors TVA)"
+      }
+    }
+  },
+  "services": {
+    "start_charging": {
+      "name": "Démarrer la charge",
+      "description": "Démarre une session de charge avec un identifiant de carte RFID facultatif.",
+      "fields": {
+        "card_id": {
+          "name": "ID de carte RFID",
+          "description": "ID de carte RFID facultatif à utiliser pour cette session. S'il n'est pas fourni, la carte par défaut configurée est utilisée."
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Arrêter la charge",
+      "description": "Arrête la session de charge en cours."
+    }
+  },
+  "exceptions": {
+    "no_valid_targets": {
+      "message": "Aucune entité de charge 50five valide n'a été ciblée."
+    }
+  }
+}
