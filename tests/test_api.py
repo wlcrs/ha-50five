@@ -694,3 +694,20 @@ async def test_homeassistant_aiohttp_transport() -> None:
     # Executing when not connected raises TransportClosed
     with pytest.raises(TransportClosed):
         await transport.execute("request")
+
+
+async def test_homeassistant_aiohttp_transport_concurrent_refcount() -> None:
+    """Test HomeAssistantAIOHTTPTransport keeps session open across concurrent users."""
+    shared_session = MagicMock()
+    transport = HomeAssistantAIOHTTPTransport(
+        url="https://example.com/graphql",
+        shared_session=shared_session,
+    )
+
+    await transport.connect()
+    await transport.connect()
+    await transport.close()
+    assert transport.session == shared_session
+
+    await transport.close()
+    assert transport.session is None

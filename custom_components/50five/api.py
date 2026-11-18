@@ -397,10 +397,12 @@ class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
         """Initialize transport."""
         super().__init__(url=url, headers=headers, timeout=timeout)
         self._shared_session = shared_session
+        self._connect_count = 0
 
     async def connect(self) -> None:
         """Connect by attaching the shared session without reopening."""
         if self._shared_session is not None:
+            self._connect_count += 1
             self.session = self._shared_session
         else:
             await super().connect()
@@ -408,7 +410,9 @@ class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
     async def close(self) -> None:
         """Close by detaching without closing the shared Home Assistant session."""
         if self._shared_session is not None:
-            self.session = None
+            self._connect_count = max(0, self._connect_count - 1)
+            if self._connect_count == 0:
+                self.session = None
         else:
             await super().close()
 
