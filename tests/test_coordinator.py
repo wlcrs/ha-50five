@@ -166,3 +166,20 @@ async def test_coordinator_completed_transactions_fetch_success(
     assert len(data) == 2
     assert data[MOCK_STATION_ID].station.last_transaction is not None
     assert data[MOCK_STATION_ID].station.last_transaction.total_energy == 28.5
+
+
+async def test_coordinator_scopes_active_transaction_by_channel_id(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_active_transaction,
+) -> None:
+    """Test active_transaction is attached only to the station owning its channelId."""
+    mock_api_client.get_active_transaction.return_value = (
+        mock_active_transaction.model_copy(update={"channel_id": "ch_888_1"})
+    )
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+
+    data = await coordinator._async_update_data()
+    assert data[MOCK_STATION_ID].active_transaction is None
+    assert data[MOCK_MULTI_STATION_ID].active_transaction is not None

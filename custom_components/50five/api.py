@@ -305,7 +305,9 @@ fragment ActiveTransaction on Transaction {
       price
     }
     tariffId
+    channelId
     channelVisibleId
+    evseId
 }
 """)
 

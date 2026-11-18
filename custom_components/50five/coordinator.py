@@ -20,6 +20,20 @@ _LOGGER = logging.getLogger(__name__)
 type FiftyFiveConfigEntry = ConfigEntry[FiftyFiveCoordinator]
 
 
+def _station_matches_active_tx(
+    station: ChargeStation, tx: ActiveTransaction | None
+) -> bool:
+    """Return whether an active transaction belongs to the given station."""
+    if tx is None:
+        return False
+    channels = station.channels or []
+    if tx.channel_id:
+        return any(ch.id == tx.channel_id for ch in channels)
+    if tx.evse_id:
+        return any(ch.evse_id == tx.evse_id for ch in channels)
+    return True
+
+
 class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
     """Class to manage fetching 50five GraphQL data with strong typing."""
 
@@ -112,7 +126,11 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 data[station_id] = StationData(
                     station=station_to_store,
                     channels=channels_by_num,
-                    active_transaction=active_transaction,
+                    active_transaction=(
+                        active_transaction
+                        if _station_matches_active_tx(station_to_store, active_transaction)
+                        else None
+                    ),
                     vat_multiplier=vat_multiplier,
                 )
 

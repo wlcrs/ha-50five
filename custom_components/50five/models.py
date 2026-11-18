@@ -156,7 +156,9 @@ class ActiveTransaction(_Model):
     duration_charging: float = 0.0  # seconds
     price_elements: list[PriceElement] = Field(default_factory=list)
     tariff_id: MaskedStr | None = None
+    channel_id: MaskedStr | None = None
     channel_visible_id: int | MaskedStr | None = None
+    evse_id: MaskedStr | None = None
 
 
 
