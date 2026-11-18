@@ -52,10 +52,10 @@ async def test_sensors_single_channel_station(
     assert hcc_state.attributes[ATTR_VAT] == 21
     assert hcc_state.attributes[ATTR_VAT_MULTIPLIER] == 1.21
 
-    # HCC enabled sensor
-    hcc_enabled_state = hass.states.get("sensor.home_charger_single_hcc_status")
+    # HCC enabled binary sensor
+    hcc_enabled_state = hass.states.get("binary_sensor.home_charger_single_hcc_status")
     assert hcc_enabled_state is not None
-    assert hcc_enabled_state.state == "Enabled"
+    assert hcc_enabled_state.state == "on"
 
     # Last transaction sensors
     last_energy_state = hass.states.get(

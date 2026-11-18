@@ -62,6 +62,11 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "hcc_enabled": {
+        "name": "HCC-status"
+      }
+    },
     "sensor": {
       "status": {
         "name": "Status",
@@ -90,9 +95,6 @@
       },
       "hcc_tariff": {
         "name": "HCC-tarief"
-      },
-      "hcc_enabled": {
-        "name": "HCC-status"
       },
       "last_transaction_energy": {
         "name": "Energie laatste sessie"

@@ -141,16 +141,6 @@ STATION_SENSORS: tuple[FiftyFiveSensorEntityDescription, ...] = (
         value_fn=_get_hcc_tariff,
         extra_state_attributes_fn=_get_hcc_tariff_attrs,
     ),
-    FiftyFiveSensorEntityDescription(
-        key="hcc_enabled",
-        translation_key="hcc_enabled",
-        icon="mdi:home-lightning-bolt",
-        value_fn=lambda data, _ch: (
-            "Enabled"
-            if data.station.hcc and data.station.hcc.hcc_enabled
-            else "Disabled"
-        ),
-    ),
     # Last completed transaction sensors
     FiftyFiveSensorEntityDescription(
         key="last_transaction_energy",
