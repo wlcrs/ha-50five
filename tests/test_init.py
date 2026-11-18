@@ -344,3 +344,30 @@ async def test_resolve_target_with_underscore_in_spot_id(
     assert resolved is not None
     _, resolved_spot_id, _ = resolved
     assert resolved_spot_id == spot_id
+
+
+async def test_setup_entry_removes_legacy_hcc_enabled_sensor(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test legacy sensor.*_hcc_enabled entity is removed on setup."""
+    mock_config_entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{MOCK_STATION_ID}_hcc_enabled",
+        config_entry=mock_config_entry,
+    )
+
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert ent_reg.async_get(legacy.entity_id) is None
+    assert (
+        ent_reg.async_get_entity_id(
+            "binary_sensor", DOMAIN, f"{MOCK_STATION_ID}_hcc_enabled"
+        )
+        is not None
+    )

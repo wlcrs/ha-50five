@@ -218,6 +218,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) ->
     # Modern HA 2024.4+ runtime data storage
     entry.runtime_data = coordinator
 
+    # Remove legacy sensor.<station>_hcc_enabled entries migrated to binary_sensor
+    ent_reg = er.async_get(hass)
+    for entity_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+        if entity_entry.domain == Platform.SENSOR and entity_entry.unique_id.endswith(
+            "_hcc_enabled"
+        ):
+            _LOGGER.info(
+                "Removing legacy sensor entity %s migrated to binary_sensor",
+                entity_entry.entity_id,
+            )
+            ent_reg.async_remove(entity_entry.entity_id)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
