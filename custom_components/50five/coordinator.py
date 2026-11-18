@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -11,7 +12,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FiftyFiveApiClient
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CHARGING_OPTIMISTIC_GRACE_SECONDS, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .exceptions import FiftyFiveAuthError, FiftyFiveError
 from .models import ActiveTransaction, ChargeStation, StationData, TransactionCollection
 
@@ -56,6 +57,46 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         self.client = client
         self.charge_stations: list[ChargeStation] = []
         self.provider_category: str | None = None
+        self._optimistic_charging: dict[tuple[str, str], tuple[bool, float]] = {}
+
+    def set_optimistic_charging_state(
+        self,
+        spot_id: str,
+        channel_id: str,
+        is_on: bool,
+        ttl_seconds: float = CHARGING_OPTIMISTIC_GRACE_SECONDS,
+    ) -> None:
+        """Store a temporary optimistic charging state for a station channel."""
+        self._optimistic_charging[(spot_id, channel_id)] = (
+            is_on,
+            time.monotonic() + ttl_seconds,
+        )
+        self.async_update_listeners()
+
+    def clear_optimistic_charging_state(self, spot_id: str, channel_id: str) -> None:
+        """Clear any pending optimistic charging state for a station channel."""
+        if self._optimistic_charging.pop((spot_id, channel_id), None) is not None:
+            self.async_update_listeners()
+
+    def get_optimistic_charging_state(
+        self,
+        spot_id: str,
+        channel_id: str,
+        *,
+        backend_is_on: bool | None = None,
+    ) -> bool | None:
+        """Return active optimistic state, clearing if confirmed or expired."""
+        entry = self._optimistic_charging.get((spot_id, channel_id))
+        if entry is None:
+            return None
+        target_state, expires_at = entry
+        if backend_is_on is not None and backend_is_on == target_state:
+            self._optimistic_charging.pop((spot_id, channel_id), None)
+            return None
+        if time.monotonic() >= expires_at:
+            self._optimistic_charging.pop((spot_id, channel_id), None)
+            return None
+        return target_state
 
     def get_channel_id(self, spot_id: str, channel_no: int = 1) -> str:
         """Resolve the GraphQL channel ID for a station and channel number."""

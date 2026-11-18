@@ -123,6 +123,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 or config_entry.data.get(CONF_CARD_ID)
             )
             await coordinator.client.start_charging(spot_id, channel_id, effective_card)
+            coordinator.set_optimistic_charging_state(spot_id, channel_id, True)
             coordinators_to_refresh.add(coordinator)
 
         for coordinator in coordinators_to_refresh:
@@ -140,6 +141,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         for coordinator, spot_id, channel_id in targets:
             await coordinator.client.stop_charging(spot_id, channel_id)
+            coordinator.set_optimistic_charging_state(spot_id, channel_id, False)
             coordinators_to_refresh.add(coordinator)
 
         for coordinator in coordinators_to_refresh:

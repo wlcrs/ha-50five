@@ -294,3 +294,26 @@ async def test_services_raise_validation_error_when_no_valid_targets(
             {"entity_id": "switch.non_existent"},
             blocking=True,
         )
+
+
+async def test_service_start_charging_sets_coordinator_optimistic_state(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test 50five.start_charging sets optimistic state on coordinator."""
+    await async_setup(hass, {})
+    mock_config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_123456_7"
+    assert hass.states.get(entity_id).state == "off"
+
+    await hass.services.async_call(
+        DOMAIN,
+        "start_charging",
+        {"entity_id": entity_id},
+        blocking=True,
+    )
+    assert hass.states.get(entity_id).state == "on"

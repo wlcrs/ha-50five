@@ -16,6 +16,9 @@ DEFAULT_SCAN_INTERVAL = 60  # seconds
 ACTION_SETTLE_DELAY_SEC = (
     5  # Seconds to wait after action before refreshing coordinator data
 )
+CHARGING_OPTIMISTIC_GRACE_SECONDS = (
+    240  # Seconds to hold optimistic charging state while backend catches up
+)
 
 # Attribute names
 ATTR_CHARGE_STATION_ID = "charge_station_id"

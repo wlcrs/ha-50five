@@ -1,7 +1,7 @@
 """Tests for the 50five charging switch platform."""
 
 import importlib
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 const = importlib.import_module("custom_components.50five.const")
+coordinator_mod = importlib.import_module("custom_components.50five.coordinator")
 exceptions = importlib.import_module("custom_components.50five.exceptions")
 
 CONF_CARD_ID = const.CONF_CARD_ID
@@ -179,3 +180,44 @@ async def test_switch_turn_off_error_rollback(
     # State should remain ON
     state = hass.states.get(entity_id)
     assert state.state == STATE_ON
+
+
+async def test_switch_optimistic_grace_window_and_expiry(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_stations,
+) -> None:
+    """Test switch holds optimistic ON across polls for 4 minutes, then expires."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_123456_7"
+    assert hass.states.get(entity_id).state == STATE_OFF
+
+    now = [1000.0]
+    with patch.object(
+        coordinator_mod.time,
+        "monotonic",
+        side_effect=lambda: now[0],
+    ):
+        await hass.services.async_call(
+            SWITCH_DOMAIN,
+            "turn_on",
+            {"entity_id": entity_id},
+            blocking=True,
+        )
+        assert hass.states.get(entity_id).state == STATE_ON
+
+        # Coordinator poll at +60s while backend still reports AVAILABLE -> stays ON
+        now[0] = 1060.0
+        await mock_config_entry.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+        assert hass.states.get(entity_id).state == STATE_ON
+
+        # Grace window expires at +240s without backend confirmation -> reverts to OFF
+        now[0] = 1240.0
+        await mock_config_entry.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+        assert hass.states.get(entity_id).state == STATE_OFF

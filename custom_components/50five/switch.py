@@ -66,7 +66,6 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
         self._entry = entry
         self._channel_no = channel_no
         self._is_multi = is_multi_channel
-        self._optimistic_is_on: bool | None = None
 
         self._card_id = (
             entry.options.get(CONF_CARD_ID) or entry.data.get(CONF_CARD_ID) or ""
@@ -84,13 +83,8 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
             self._attr_translation_key = "charging"
             self._attr_translation_placeholders = {"card_id": self._card_id}
 
-    @property
-    def is_on(self) -> bool:
-        """Return true if charging session is active on this channel."""
-        # Use optimistic state if an action is currently pending
-        if self._optimistic_is_on is not None:
-            return self._optimistic_is_on
-
+    def _backend_is_on(self) -> bool:
+        """Return whether the backend currently reports an active charging session."""
         station_data = self.coordinator.data.get(self._spot_id)
         if not station_data:
             return False
@@ -111,13 +105,20 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
 
         return False
 
+    @property
+    def is_on(self) -> bool:
+        """Return true if charging session is active on this channel."""
+        backend_on = self._backend_is_on()
+        optimistic = self.coordinator.get_optimistic_charging_state(
+            self._spot_id,
+            self._get_channel_id(),
+            backend_is_on=backend_on,
+        )
+        return optimistic if optimistic is not None else backend_on
+
     def _get_channel_id(self) -> str:
         """Resolve the GraphQL channel ID."""
         return self.coordinator.get_channel_id(self._spot_id, self._channel_no)
-
-    def _clear_optimistic_state(self) -> None:
-        """Clear optimistic switch state before coordinator refresh."""
-        self._optimistic_is_on = None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start charging session on this channel with immediate UI feedback."""
@@ -130,9 +131,10 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
             self._card_id or "default/none",
         )
 
-        # 1. Immediately update UI state
-        self._optimistic_is_on = True
-        self.async_write_ha_state()
+        # 1. Immediately update UI state with 4-minute grace window
+        self.coordinator.set_optimistic_charging_state(
+            self._spot_id, channel_id, True
+        )
 
         # 2. Perform API request
         try:
@@ -142,11 +144,10 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
                 card=self._card_id,
             )
             # 3. Schedule non-blocking background refresh to confirm state from LMS backend
-            self._schedule_delayed_refresh(self._clear_optimistic_state)
+            self._schedule_delayed_refresh()
         except Exception:
             _LOGGER.exception("Failed to start charging on %s", self._spot_id)
-            self._optimistic_is_on = None
-            self.async_write_ha_state()
+            self.coordinator.clear_optimistic_charging_state(self._spot_id, channel_id)
             raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -159,9 +160,10 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
             channel_id,
         )
 
-        # 1. Immediately update UI state
-        self._optimistic_is_on = False
-        self.async_write_ha_state()
+        # 1. Immediately update UI state with 4-minute grace window
+        self.coordinator.set_optimistic_charging_state(
+            self._spot_id, channel_id, False
+        )
 
         # 2. Perform API request
         try:
@@ -170,9 +172,8 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
                 channel_id=channel_id,
             )
             # 3. Schedule non-blocking background refresh to confirm state from LMS backend
-            self._schedule_delayed_refresh(self._clear_optimistic_state)
+            self._schedule_delayed_refresh()
         except Exception:
             _LOGGER.exception("Failed to stop charging on %s", self._spot_id)
-            self._optimistic_is_on = None
-            self.async_write_ha_state()
+            self.coordinator.clear_optimistic_charging_state(self._spot_id, channel_id)
             raise
