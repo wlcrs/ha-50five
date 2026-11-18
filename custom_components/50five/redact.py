@@ -90,7 +90,6 @@ def censor(
         annotations = get_type_hints(type(data), include_extras=True)
         for field_name in type(data).model_fields:
             value = getattr(data, field_name)
-            key_norm = _normalize_key(field_name)
             if _is_redacted_type(annotations.get(field_name)):
                 censored[field_name] = "<redacted>"
             elif _is_masked_type(annotations.get(field_name)):
