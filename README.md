@@ -51,9 +51,12 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 * **Last Session Card**: RFID card ID / contract ID used for the last session.
 
 ### ⚡ Home Charging Compensation (HCC) Sensors and Control
-* **HCC Status**: Status of Home Charging Compensation reimbursement (`Enabled` / `Disabled`).
-* **HCC Tariff**: Active compensation reimbursement rate (€/kWh).
-* **HCC Tariff (excluding VAT)**: A disabled-by-default number entity for changing the backend's raw HCC tariff. Its minimum and maximum come from the backend reimbursement tariff range (fallback: €0.0001–€0.67/kWh) and remain excluding VAT. The mobile app displays VAT-inclusive amounts and converts the entered amount back to the raw tariff before saving. The entity is omitted for Belgian provider-category accounts, where the app hides the edit control, and successful updates are verified by reading the tariff back.
+* **HCC Status**: Binary sensor indicating whether Home Charging Compensation reimbursement is enabled (`On` / `Off`).
+* **HCC Tariff (Sensor)**: Active compensation reimbursement rate including VAT (€/kWh), with the raw net tariff, VAT percentage, and VAT multiplier exposed as attributes.
+* **HCC Tariff (Number)**: A disabled-by-default number entity for changing the HCC tariff, displayed **including VAT** just like the mobile app. Its minimum and maximum come from the backend `reimbursementTariffRange` (fallback: €0.0001–€0.67/kWh net) with the account's VAT multiplier applied and rounded to 4 decimal places. Entered values are divided by the VAT multiplier (rounded to 4 decimals) before saving to the backend, and updates are verified by reading the tariff back. The entity is omitted for Belgian provider-category accounts, where the app hides the edit control.
+
+> [!NOTE]
+> The VAT multipliers used for HCC tariff calculations are **hard-coded** in the integration (mirroring the 50five mobile app's `VatTariff` lookup by customer `providerCategory`, with a `1.21` / 21% fallback). If VAT rates change in your country, the integration must be updated to reflect the new rate.
 
 ### 🛠️ Home Assistant Services
 The integration registers custom services under the `50five` domain for automations that require specific parameters (such as a custom RFID card):
