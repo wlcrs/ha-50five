@@ -168,6 +168,11 @@
       "channel_unlock_connector": {
         "name": "Ch {channel} Unlock connector"
       }
+    },
+    "number": {
+      "hcc_tariff": {
+        "name": "HCC tariff (excluding VAT)"
+      }
     }
   },
   "services": {
