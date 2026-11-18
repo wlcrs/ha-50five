@@ -711,3 +711,35 @@ async def test_homeassistant_aiohttp_transport_concurrent_refcount() -> None:
 
     await transport.close()
     assert transport.session is None
+
+
+async def test_homeassistant_aiohttp_transport_passes_timeout() -> None:
+    """Test HomeAssistantAIOHTTPTransport forwards timeout to shared session.post."""
+    import aiohttp
+    from gql import gql
+    from gql.graphql_request import GraphQLRequest
+
+    response = MagicMock()
+    response.status = 200
+    response.reason = "OK"
+    response.headers = {"Content-Type": "application/json"}
+    response.json = AsyncMock(return_value={"data": {"ok": True}})
+
+    post_cm = MagicMock()
+    post_cm.__aenter__ = AsyncMock(return_value=response)
+    post_cm.__aexit__ = AsyncMock(return_value=None)
+
+    shared_session = MagicMock()
+    shared_session.post = MagicMock(return_value=post_cm)
+
+    transport = HomeAssistantAIOHTTPTransport(
+        url="https://example.com/graphql",
+        timeout=25,
+        shared_session=shared_session,
+    )
+    await transport.connect()
+    await transport.execute(GraphQLRequest(gql("query { ok }")))
+
+    _, kwargs = shared_session.post.call_args
+    assert isinstance(kwargs["timeout"], aiohttp.ClientTimeout)
+    assert kwargs["timeout"].total == 25

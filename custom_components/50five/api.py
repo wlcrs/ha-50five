@@ -436,6 +436,8 @@ class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
 
         request_args = self._prepare_request(request, extra_args, upload_files)
         request_args["headers"] = self.headers
+        if self.timeout is not None and "timeout" not in request_args:
+            request_args["timeout"] = aiohttp.ClientTimeout(total=self.timeout)
 
         try:
             async with self.session.post(
