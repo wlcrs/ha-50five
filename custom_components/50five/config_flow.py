@@ -32,6 +32,49 @@ from .models import ChargeCard
 _LOGGER = logging.getLogger(__name__)
 
 
+def _build_entry_data(
+    client: FiftyFiveApiClient,
+    username: str,
+    password: str,
+    device_id: str,
+) -> dict[str, Any]:
+    """Build config entry data dictionary from an authenticated client."""
+    data: dict[str, Any] = {
+        CONF_USERNAME: username,
+        CONF_PASSWORD: password,
+        CONF_DEVICE_ID: device_id,
+        CONF_ACCESS_TOKEN: client.access_token,
+        CONF_TOKEN_EXPIRES_AT: (
+            client.token_expires_at.isoformat() if client.token_expires_at else None
+        ),
+    }
+    if client.customer_id:
+        data[CONF_CUSTOMER_ID] = client.customer_id
+    return data
+
+
+def _build_card_options(cards: list[ChargeCard], empty_label: str) -> dict[str, str]:
+    """Build selector options mapping card identifier to display name."""
+    card_options: dict[str, str] = {"": empty_label}
+    for card in cards:
+        ident = card.identifier
+        if ident:
+            card_options[ident] = card.display_name
+    return card_options
+
+
+def _validate_card_selection(
+    user_input: dict[str, Any],
+) -> tuple[str, dict[str, str]]:
+    """Validate card selection and ownership confirmation."""
+    selected_card = (user_input.get(CONF_CARD_ID) or "").strip()
+    confirmed = bool(user_input.get(CONF_CONFIRM_OWNERSHIP))
+    errors: dict[str, str] = {}
+    if selected_card and not confirmed:
+        errors[CONF_CONFIRM_OWNERSHIP] = "must_confirm_ownership"
+    return selected_card, errors
+
+
 class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for 50five GraphQL."""
 
@@ -52,6 +95,44 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Get options flow handler."""
         return FiftyFiveOptionsFlowHandler()
 
+    async def _async_authenticate(
+        self,
+        username: str,
+        password: str,
+        device_id: str,
+    ) -> tuple[FiftyFiveApiClient | None, dict[str, str]]:
+        """Authenticate credentials and return (client, errors)."""
+        errors: dict[str, str] = {}
+        session = async_get_clientsession(self.hass)
+        client = FiftyFiveApiClient(
+            username=username,
+            password=password,
+            session=session,
+            device_id=device_id,
+        )
+        try:
+            if await client.authenticate():
+                return client, errors
+            errors["base"] = "invalid_auth"
+        except AbortFlow:
+            raise
+        except FiftyFiveAuthError:
+            errors["base"] = "invalid_auth"
+        except FiftyFiveConnectionError:
+            errors["base"] = "cannot_connect"
+        except Exception:
+            _LOGGER.exception("Unexpected exception during config flow")
+            errors["base"] = "unknown"
+        return None, errors
+
+    async def _async_fetch_cards(self, client: FiftyFiveApiClient) -> list[ChargeCard]:
+        """Fetch charge cards for an authenticated account."""
+        try:
+            return await client.get_tokens()
+        except FiftyFiveError as err:
+            _LOGGER.warning("Could not fetch charge cards for account: %s", err)
+            return []
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -61,54 +142,17 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             username = user_input[CONF_USERNAME].strip()
             password = user_input[CONF_PASSWORD]
-
-            session = async_get_clientsession(self.hass)
-            client = FiftyFiveApiClient(
-                username=username,
-                password=password,
-                session=session,
-                device_id=self._device_id,
+            client, errors = await self._async_authenticate(
+                username, password, self._device_id
             )
-
-            try:
-                if await client.authenticate():
-                    await self.async_set_unique_id(f"{DOMAIN}_{username.lower()}")
-                    self._abort_if_unique_id_configured()
-
-                    self._data = {
-                        CONF_USERNAME: username,
-                        CONF_PASSWORD: password,
-                        CONF_DEVICE_ID: self._device_id,
-                        CONF_ACCESS_TOKEN: client.access_token,
-                        CONF_TOKEN_EXPIRES_AT: (
-                            client.token_expires_at.isoformat()
-                            if client.token_expires_at
-                            else None
-                        ),
-                    }
-                    if client.customer_id:
-                        self._data[CONF_CUSTOMER_ID] = client.customer_id
-
-                    try:
-                        self._cards = await client.get_tokens()
-                    except FiftyFiveError as err:
-                        _LOGGER.warning(
-                            "Could not fetch charge cards for account: %s", err
-                        )
-                        self._cards = []
-
-                    return await self.async_step_card()
-
-                errors["base"] = "invalid_auth"
-            except AbortFlow:
-                raise
-            except FiftyFiveAuthError:
-                errors["base"] = "invalid_auth"
-            except FiftyFiveConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected exception during config flow")
-                errors["base"] = "unknown"
+            if client is not None:
+                await self.async_set_unique_id(f"{DOMAIN}_{username.lower()}")
+                self._abort_if_unique_id_configured()
+                self._data = _build_entry_data(
+                    client, username, password, self._device_id
+                )
+                self._cards = await self._async_fetch_cards(client)
+                return await self.async_step_card()
 
         schema = vol.Schema(
             {
@@ -130,12 +174,8 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            selected_card = (user_input.get(CONF_CARD_ID) or "").strip()
-            confirmed = bool(user_input.get(CONF_CONFIRM_OWNERSHIP))
-
-            if selected_card and not confirmed:
-                errors[CONF_CONFIRM_OWNERSHIP] = "must_confirm_ownership"
-            else:
+            selected_card, errors = _validate_card_selection(user_input)
+            if not errors:
                 if self._reconfig_entry:
                     return self.async_update_reload_and_abort(
                         self._reconfig_entry,
@@ -154,11 +194,7 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        card_options: dict[str, str] = {"": "None (skip)"}
-        for card in self._cards:
-            ident = card.identifier
-            if ident:
-                card_options[ident] = card.display_name
+        card_options = _build_card_options(self._cards, "None (skip)")
 
         schema = vol.Schema(
             {
@@ -187,53 +223,17 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             username = user_input[CONF_USERNAME].strip()
-            password = user_input[CONF_PASSWORD] or config_entry.data.get(CONF_PASSWORD)
-
-            session = async_get_clientsession(self.hass)
-            client = FiftyFiveApiClient(
-                username=username,
-                password=password,
-                session=session,
-                device_id=device_id,
+            password = user_input[CONF_PASSWORD] or config_entry.data.get(
+                CONF_PASSWORD, ""
             )
-
-            try:
-                if await client.authenticate():
-                    self._reconfig_entry = config_entry
-                    self._data = {
-                        CONF_USERNAME: username,
-                        CONF_PASSWORD: password,
-                        CONF_DEVICE_ID: device_id,
-                        CONF_ACCESS_TOKEN: client.access_token,
-                        CONF_TOKEN_EXPIRES_AT: (
-                            client.token_expires_at.isoformat()
-                            if client.token_expires_at
-                            else None
-                        ),
-                    }
-                    if client.customer_id:
-                        self._data[CONF_CUSTOMER_ID] = client.customer_id
-
-                    try:
-                        self._cards = await client.get_tokens()
-                    except FiftyFiveError as err:
-                        _LOGGER.warning(
-                            "Could not fetch charge cards for account: %s", err
-                        )
-                        self._cards = []
-
-                    return await self.async_step_card()
-
-                errors["base"] = "invalid_auth"
-            except AbortFlow:
-                raise
-            except FiftyFiveAuthError:
-                errors["base"] = "invalid_auth"
-            except FiftyFiveConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected exception during config flow")
-                errors["base"] = "unknown"
+            client, errors = await self._async_authenticate(
+                username, password, device_id
+            )
+            if client is not None:
+                self._reconfig_entry = config_entry
+                self._data = _build_entry_data(client, username, password, device_id)
+                self._cards = await self._async_fetch_cards(client)
+                return await self.async_step_card()
 
         current_data = config_entry.data
         schema = vol.Schema(
@@ -272,44 +272,27 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             password = user_input[CONF_PASSWORD]
-            session = async_get_clientsession(self.hass)
-            client = FiftyFiveApiClient(
-                username=username,
-                password=password,
-                session=session,
-                device_id=device_id,
+            client, errors = await self._async_authenticate(
+                username, password, device_id
             )
+            if client is not None:
+                data_updates = {
+                    CONF_PASSWORD: password,
+                    CONF_ACCESS_TOKEN: client.access_token,
+                    CONF_TOKEN_EXPIRES_AT: (
+                        client.token_expires_at.isoformat()
+                        if client.token_expires_at
+                        else None
+                    ),
+                }
+                if client.customer_id:
+                    data_updates[CONF_CUSTOMER_ID] = client.customer_id
 
-            try:
-                if await client.authenticate():
-                    data_updates = {
-                        CONF_PASSWORD: password,
-                        CONF_ACCESS_TOKEN: client.access_token,
-                        CONF_TOKEN_EXPIRES_AT: (
-                            client.token_expires_at.isoformat()
-                            if client.token_expires_at
-                            else None
-                        ),
-                    }
-                    if client.customer_id:
-                        data_updates[CONF_CUSTOMER_ID] = client.customer_id
-
-                    return self.async_update_reload_and_abort(
-                        config_entry,
-                        data_updates=data_updates,
-                        reason="reauth_successful",
-                    )
-
-                errors["base"] = "invalid_auth"
-            except AbortFlow:
-                raise
-            except FiftyFiveAuthError:
-                errors["base"] = "invalid_auth"
-            except FiftyFiveConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected exception during reauth")
-                errors["base"] = "unknown"
+                return self.async_update_reload_and_abort(
+                    config_entry,
+                    data_updates=data_updates,
+                    reason="reauth_successful",
+                )
 
         schema = vol.Schema(
             {
@@ -335,12 +318,8 @@ class FiftyFiveOptionsFlowHandler(OptionsFlowWithReload):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            selected_card = (user_input.get(CONF_CARD_ID) or "").strip()
-            confirmed = bool(user_input.get(CONF_CONFIRM_OWNERSHIP))
-
-            if selected_card and not confirmed:
-                errors[CONF_CONFIRM_OWNERSHIP] = "must_confirm_ownership"
-            else:
+            selected_card, errors = _validate_card_selection(user_input)
+            if not errors:
                 return self.async_create_entry(
                     title="",
                     data={CONF_CARD_ID: selected_card},
@@ -359,11 +338,7 @@ class FiftyFiveOptionsFlowHandler(OptionsFlowWithReload):
         current_card = self.config_entry.options.get(
             CONF_CARD_ID, self.config_entry.data.get(CONF_CARD_ID, "")
         )
-        card_options: dict[str, str] = {"": "None (no card configured)"}
-        for card in cards:
-            ident = card.identifier
-            if ident:
-                card_options[ident] = card.display_name
+        card_options = _build_card_options(cards, "None (no card configured)")
         if current_card and current_card not in card_options:
             card_options[current_card] = current_card
 
