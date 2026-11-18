@@ -20,7 +20,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import ATTR_RAW_TARIFF, ATTR_VAT, ATTR_VAT_MULTIPLIER
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
 from .entity import FiftyFiveEntity
-from .models import GlobalStatus, StationData
+from .models import ActiveTransaction, GlobalStatus, StationData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ def _get_channel_status(data: StationData, channel_no: int) -> str:
     return ch.status.value if ch else GlobalStatus.UNKNOWN.value
 
 
-def _matching_active_tx(data: StationData, channel_no: int):
+def _matching_active_tx(
+    data: StationData, channel_no: int
+) -> ActiveTransaction | None:
     """Return active transaction if matching this channel."""
     tx = data.active_transaction
     if not tx:
