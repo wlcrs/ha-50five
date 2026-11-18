@@ -132,13 +132,12 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Start charging session on this channel with immediate UI feedback."""
         channel_id = self._get_channel_id()
-        card_id = kwargs.get("card_id") or self._card_id
 
         _LOGGER.info(
             "Starting charging session on station %s, channel %s (card: %s)",
             self._spot_id,
             channel_id,
-            card_id or "default/none",
+            self._card_id or "default/none",
         )
 
         # 1. Immediately update UI state
@@ -150,7 +149,7 @@ class FiftyFiveChargingSwitch(FiftyFiveEntity, SwitchEntity):
             await self.coordinator.client.start_charging(
                 charge_station_id=self._spot_id,
                 channel_id=channel_id,
-                card=card_id,
+                card=self._card_id,
             )
             # 3. Schedule non-blocking background refresh to confirm state from LMS backend
             await self._async_schedule_refresh()
