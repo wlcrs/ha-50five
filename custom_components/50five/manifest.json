@@ -11,7 +11,7 @@
   "issue_tracker": "https://github.com/wlcrs/ha-50five/issues",
   "requirements": [
     "gql[aiohttp]>=3.5.0",
-    "pydantic"
+    "pydantic>=2.0.0"
   ],
   "version": "0.2.0"
 }
