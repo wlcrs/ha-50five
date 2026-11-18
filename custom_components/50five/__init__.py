@@ -73,12 +73,24 @@ def _resolve_fiftyfive_target(
             )
 
     if not spot_id:
-        spot_id = entity_entry.unique_id.split("_", 1)[0]
+        if coordinator.data:
+            spot_id = max(
+                (
+                    sid
+                    for sid in coordinator.data
+                    if entity_entry.unique_id.startswith(f"{sid}_")
+                ),
+                key=len,
+                default=None,
+            )
+        if not spot_id:
+            spot_id = entity_entry.unique_id.split("_", 1)[0]
     if not spot_id:
         return None
 
-    # Channel ID (matches _ch<N>_ in unique_id if multi-channel, else channel 1)
-    m = re.search(r"_ch(\d+)_", entity_entry.unique_id)
+    # Channel ID (matches ch<N>_ suffix after spot_id_ if multi-channel, else channel 1)
+    suffix = entity_entry.unique_id.removeprefix(f"{spot_id}_")
+    m = re.match(r"ch(\d+)_", suffix)
     ch_num = int(m.group(1)) if m else 1
     channel_id = coordinator.get_channel_id(spot_id, ch_num)
 

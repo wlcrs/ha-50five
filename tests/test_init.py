@@ -317,3 +317,30 @@ async def test_service_start_charging_sets_coordinator_optimistic_state(
         blocking=True,
     )
     assert hass.states.get(entity_id).state == "on"
+
+
+async def test_resolve_target_with_underscore_in_spot_id(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test _resolve_fiftyfive_target handles spot_ids containing _ch<N>_."""
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = mock_config_entry.runtime_data
+    spot_id = "station_ch2_test"
+    coordinator.data[spot_id] = coordinator.data[MOCK_STATION_ID]
+
+    entity_registry = er.async_get(hass)
+    entry = entity_registry.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{spot_id}_charging",
+        config_entry=mock_config_entry,
+    )
+    resolved = _resolve_fiftyfive_target(hass, entry.entity_id)
+    assert resolved is not None
+    _, resolved_spot_id, _ = resolved
+    assert resolved_spot_id == spot_id
