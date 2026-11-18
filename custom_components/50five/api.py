@@ -7,6 +7,7 @@ import base64
 import binascii
 import json
 import logging
+import math
 import uuid
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
@@ -45,6 +46,7 @@ from .models import (
     GetCustomerByIdResponse,
     GetCustomerChargeCardsResponse,
     GetCustomerChargeStationsResponse,
+    GetReimbursementTariffRangeResponse,
     HardResetResponse,
     LmsActiveTransactionResponse,
     LoginMutationResponse,
@@ -52,7 +54,9 @@ from .models import (
     SoftResetResponse,
     StartTransactionResponse,
     StopTransactionResponse,
+    TariffRange,
     UnlockConnectorResponse,
+    UpdateHccTariffResponse,
 )
 from .redact import censor
 
@@ -345,6 +349,40 @@ mutation resetChargeStationParametersCache($chargeStationId: ID!) {
 }
 """)
 
+UPDATE_HCC_TARIFF_MUTATION = gql("""
+mutation UpdateHccTariff(
+  $tariff: Float!
+  $chargeStationId: ID!
+  $customerId: ID
+) {
+  updateHccTariff(
+    tariff: $tariff
+    chargeStationId: $chargeStationId
+    customerId: $customerId
+  )
+}
+""")
+
+GET_CHARGE_STATION_HCC_QUERY = gql("""
+query GetChargeStationHcc($chargeStationId: ID!) {
+  getChargeStationById(id: $chargeStationId) {
+    id
+    homeChargingCompensation {
+      hccTariff
+    }
+  }
+}
+""")
+
+GET_REIMBURSEMENT_TARIFF_RANGE_QUERY = gql("""
+query ReimbursementTariffRange {
+  reimbursementTariffRange {
+    min
+    max
+  }
+}
+""")
+
 
 class HomeAssistantAIOHTTPTransport(AIOHTTPTransport):
     """AIOHTTPTransport that uses Home Assistant's shared ClientSession safely without closing it."""
@@ -475,6 +513,7 @@ class FiftyFiveApiClient:
                 ) or claims.get("id")
 
         self._vat_multiplier: float | None = None
+        self.provider_category: str | None = None
         self._auth_lock = asyncio.Lock()
         self._client: Client | None = None
         self._rebuild_client()
@@ -682,8 +721,13 @@ class FiftyFiveApiClient:
                     response_model=GetCustomerByIdResponse,
                 )
                 customer = response.get_customer_by_id
-                if customer and customer.provider_category:
-                    category = customer.provider_category.strip()
+                category = (
+                    customer.provider_category.strip()
+                    if customer and customer.provider_category
+                    else None
+                )
+                self.provider_category = category
+                if category:
                     self._vat_multiplier = VAT_MULTIPLIERS.get(
                         category, DEFAULT_VAT_MULTIPLIER
                     )
@@ -930,3 +974,51 @@ class FiftyFiveApiClient:
             response_model=ResetParametersCacheResponse,
         )
         return response.reset_charge_station_parameters_cache is not False
+
+    async def get_reimbursement_tariff_range(self) -> TariffRange | None:
+        """Return the backend's allowed range for HCC reimbursement tariffs."""
+        response = await self._execute_query(
+            GET_REIMBURSEMENT_TARIFF_RANGE_QUERY,
+            response_model=GetReimbursementTariffRangeResponse,
+        )
+        return response.reimbursement_tariff_range
+
+    async def update_hcc_tariff(
+        self, charge_station_id: str, tariff: float
+    ) -> bool:
+        """Update an HCC tariff and verify the value stored by the backend."""
+        if not self.customer_id and self._access_token:
+            self.customer_id = _extract_customer_id_from_jwt(self._access_token)
+
+        variables: dict[str, Any] = {
+            "tariff": float(tariff),
+            "chargeStationId": str(charge_station_id),
+        }
+        if self.customer_id:
+            variables["customerId"] = str(self.customer_id)
+
+        response = await self._execute_query(
+            UPDATE_HCC_TARIFF_MUTATION,
+            variables,
+            response_model=UpdateHccTariffResponse,
+        )
+        if response.update_hcc_tariff is not True:
+            raise FiftyFiveApiError("50five rejected the HCC tariff update")
+
+        readback = await self._execute_query(
+            GET_CHARGE_STATION_HCC_QUERY,
+            {"chargeStationId": str(charge_station_id)},
+            response_model=GetChargeStationByIdResponse,
+        )
+        station = readback.get_charge_station_by_id
+        registered_tariff = (
+            station.hcc.hcc_tariff if station and station.hcc else None
+        )
+        if registered_tariff is None or not math.isclose(
+            registered_tariff, tariff, rel_tol=0.0, abs_tol=1e-6
+        ):
+            raise FiftyFiveApiError(
+                f"HCC tariff read-back did not match requested value {tariff}"
+            )
+
+        return True

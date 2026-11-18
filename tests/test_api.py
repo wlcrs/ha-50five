@@ -22,6 +22,7 @@ GetChargeStationByIdResponse = api_mod.GetChargeStationByIdResponse
 GetCustomerByIdResponse = api_mod.GetCustomerByIdResponse
 GetCustomerChargeCardsResponse = api_mod.GetCustomerChargeCardsResponse
 GetCustomerChargeStationsResponse = api_mod.GetCustomerChargeStationsResponse
+GetReimbursementTariffRangeResponse = api_mod.GetReimbursementTariffRangeResponse
 HardResetResponse = api_mod.HardResetResponse
 LmsActiveTransactionResponse = api_mod.LmsActiveTransactionResponse
 ResetParametersCacheResponse = api_mod.ResetParametersCacheResponse
@@ -29,6 +30,7 @@ SoftResetResponse = api_mod.SoftResetResponse
 StartTransactionResponse = api_mod.StartTransactionResponse
 StopTransactionResponse = api_mod.StopTransactionResponse
 UnlockConnectorResponse = api_mod.UnlockConnectorResponse
+UpdateHccTariffResponse = api_mod.UpdateHccTariffResponse
 HomeAssistantAIOHTTPTransport = api_mod.HomeAssistantAIOHTTPTransport
 _extract_customer_id_from_jwt = api_mod._extract_customer_id_from_jwt
 _extract_jwt_claims = api_mod._extract_jwt_claims
@@ -275,6 +277,7 @@ async def test_get_vat_multiplier() -> None:
         )
         vat = await client.get_vat_multiplier()
         assert vat == 1.06
+        assert client.provider_category == "BE"
 
     # Cached value returns immediately
     assert await client.get_vat_multiplier() == 1.06
@@ -564,6 +567,112 @@ async def test_api_mutation_methods() -> None:
             reset_charge_station_parameters_cache=True
         )
         assert await client.reset_parameters_cache(MOCK_STATION_ID) is True
+
+
+async def test_update_hcc_tariff_verifies_backend_readback() -> None:
+    """Test HCC updates are verified against the backend value."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+        customer_id=MOCK_CUSTOMER_ID,
+    )
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.side_effect = [
+            UpdateHccTariffResponse(update_hcc_tariff=True),
+            GetChargeStationByIdResponse.model_validate({
+                "getChargeStationById": {
+                    "id": MOCK_STATION_ID,
+                    "homeChargingCompensation": {
+                        "hccTariff": 0.42,
+                    },
+                }
+            }),
+        ]
+
+        assert await client.update_hcc_tariff(MOCK_STATION_ID, 0.42) is True
+
+    mutation, mutation_variables = mock_query.await_args_list[0].args
+    readback, readback_variables = mock_query.await_args_list[1].args
+    assert mutation == api_mod.UPDATE_HCC_TARIFF_MUTATION
+    assert mutation_variables == {
+        "tariff": 0.42,
+        "chargeStationId": MOCK_STATION_ID,
+        "customerId": MOCK_CUSTOMER_ID,
+    }
+    assert readback == api_mod.GET_CHARGE_STATION_HCC_QUERY
+    assert readback_variables == {"chargeStationId": MOCK_STATION_ID}
+
+
+async def test_get_reimbursement_tariff_range() -> None:
+    """Test fetching the net HCC tariff limits from the backend."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+    )
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = GetReimbursementTariffRangeResponse.model_validate(
+            {"reimbursementTariffRange": {"min": 0.05, "max": 0.75}}
+        )
+        tariff_range = await client.get_reimbursement_tariff_range()
+
+    assert tariff_range is not None
+    assert (tariff_range.min, tariff_range.max) == (0.05, 0.75)
+    query = mock_query.await_args.args[0]
+    assert query == api_mod.GET_REIMBURSEMENT_TARIFF_RANGE_QUERY
+    assert mock_query.await_args.kwargs == {
+        "response_model": GetReimbursementTariffRangeResponse
+    }
+
+
+@pytest.mark.parametrize("registered_tariff", [None, 0.41])
+async def test_update_hcc_tariff_rejects_incorrect_readback(
+    registered_tariff: float | None,
+) -> None:
+    """Test an unverified HCC tariff update fails."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+    )
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.side_effect = [
+            UpdateHccTariffResponse(update_hcc_tariff=True),
+            GetChargeStationByIdResponse.model_validate({
+                "getChargeStationById": {
+                    "id": MOCK_STATION_ID,
+                    "homeChargingCompensation": {
+                        "hccTariff": registered_tariff,
+                    },
+                }
+            }),
+        ]
+
+        with pytest.raises(FiftyFiveApiError, match="did not match"):
+            await client.update_hcc_tariff(MOCK_STATION_ID, 0.42)
+
+
+async def test_update_hcc_tariff_rejects_false_mutation() -> None:
+    """Test a rejected mutation fails before reading it back."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+    )
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = UpdateHccTariffResponse(
+            update_hcc_tariff=False
+        )
+
+        with pytest.raises(FiftyFiveApiError, match="rejected"):
+            await client.update_hcc_tariff(MOCK_STATION_ID, 0.42)
+
+    assert mock_query.await_count == 1
 
 
 async def test_homeassistant_aiohttp_transport() -> None:

@@ -32,6 +32,7 @@ DOMAIN = const.DOMAIN
 ActiveTransaction = models.ActiveTransaction
 ChargeCard = models.ChargeCard
 ChargeStation = models.ChargeStation
+TariffRange = models.TariffRange
 
 from .const import (
     MOCK_ACTIVE_TRANSACTION_RESPONSE,
@@ -125,7 +126,11 @@ def mock_api_client(
         client.is_token_expired.return_value = False
 
         client.authenticate = AsyncMock(return_value=True)
+        client.provider_category = "NL"
         client.get_vat_multiplier = AsyncMock(return_value=1.21)
+        client.get_reimbursement_tariff_range = AsyncMock(
+            return_value=TariffRange(min=0.05, max=0.75)
+        )
         client.get_customer_charge_stations = AsyncMock(
             return_value=mock_charge_stations
         )
@@ -151,6 +156,7 @@ def mock_api_client(
         client.soft_reset = AsyncMock(return_value=True)
         client.hard_reset = AsyncMock(return_value=True)
         client.reset_parameters_cache = AsyncMock(return_value=True)
+        client.update_hcc_tariff = AsyncMock(return_value=True)
 
         yield client
 

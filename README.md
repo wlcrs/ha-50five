@@ -50,9 +50,10 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 * **Last Session Cost**: Total cost of the last completed session (€).
 * **Last Session Card**: RFID card ID / contract ID used for the last session.
 
-### ⚡ Home Charging Compensation (HCC) Sensors
+### ⚡ Home Charging Compensation (HCC) Sensors and Control
 * **HCC Status**: Status of Home Charging Compensation reimbursement (`Enabled` / `Disabled`).
 * **HCC Tariff**: Active compensation reimbursement rate (€/kWh).
+* **HCC Tariff (excluding VAT)**: A disabled-by-default number entity for changing the backend's raw HCC tariff. Its minimum and maximum come from the backend reimbursement tariff range (fallback: €0.0001–€0.67/kWh) and remain excluding VAT. The mobile app displays VAT-inclusive amounts and converts the entered amount back to the raw tariff before saving. The entity is omitted for Belgian provider-category accounts, where the app hides the edit control, and successful updates are verified by reading the tariff back.
 
 ### 🛠️ Home Assistant Services
 The integration registers custom services under the `50five` domain for automations that require specific parameters (such as a custom RFID card):

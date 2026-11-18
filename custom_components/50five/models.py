@@ -574,3 +574,22 @@ class ResetParametersCacheResponse(_Model):
     """Response envelope for ``resetChargeStationParametersCache``."""
 
     reset_charge_station_parameters_cache: bool | None = None
+
+
+class UpdateHccTariffResponse(_Model):
+    """Response envelope for ``updateHccTariff``."""
+
+    update_hcc_tariff: bool | None = None
+
+
+class TariffRange(_Model):
+    """GraphQL ``TariffRange`` returned by ``reimbursementTariffRange``."""
+
+    min: float
+    max: float
+
+
+class GetReimbursementTariffRangeResponse(_Model):
+    """Response envelope for the ``reimbursementTariffRange`` query."""
+
+    reimbursement_tariff_range: TariffRange | None = None

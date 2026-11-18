@@ -62,3 +62,10 @@ VAT_MULTIPLIERS: dict[str, float] = {
     "UBER": 1.0,
 }
 DEFAULT_VAT_MULTIPLIER = 1.21  # Default fallback (NL)
+
+# Proxy for app variants where the HCC tariff edit pencil is not shown.
+HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES = frozenset({"BE"})
+
+# Fallback reimbursement tariff range used by the mobile app.
+DEFAULT_HCC_TARIFF_MIN = 0.0001
+DEFAULT_HCC_TARIFF_MAX = 0.67

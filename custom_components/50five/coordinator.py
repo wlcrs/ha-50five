@@ -41,6 +41,7 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         )
         self.client = client
         self.charge_stations: list[ChargeStation] = []
+        self.provider_category: str | None = None
 
     def get_channel_id(self, spot_id: str, channel_no: int = 1) -> str:
         """Resolve the GraphQL channel ID for a station and channel number."""
@@ -55,6 +56,7 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         """Fetch charge stations and active transaction data from GraphQL API."""
         try:
             vat_multiplier = await self.client.get_vat_multiplier()
+            self.provider_category = self.client.provider_category
             # Query all customer charge stations (returns list[ChargeStation])
             stations = await self.client.get_customer_charge_stations()
             self.charge_stations = stations or []
