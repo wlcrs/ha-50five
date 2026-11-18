@@ -111,3 +111,25 @@ async def test_sensors_multi_channel_station(
     ch2_energy = hass.states.get("sensor.office_charger_dual_ch_2_session_energy")
     assert ch2_energy is not None
     assert float(ch2_energy.state) == 0.0
+
+
+async def test_session_energy_unknown_when_charging_without_active_tx(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test session_energy is unknown instead of 0.0 if active tx fetch fails mid-charge."""
+    mock_api_client.get_active_transaction.return_value = None
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Channel 1 is CHARGING without active tx -> unknown (prevents TOTAL_INCREASING reset)
+    ch1_energy = hass.states.get("sensor.office_charger_dual_ch_1_session_energy")
+    assert ch1_energy is not None
+    assert ch1_energy.state == "unknown"
+
+    # Channel 2 is AVAILABLE -> 0.0
+    ch2_energy = hass.states.get("sensor.office_charger_dual_ch_2_session_energy")
+    assert ch2_energy is not None
+    assert float(ch2_energy.state) == 0.0

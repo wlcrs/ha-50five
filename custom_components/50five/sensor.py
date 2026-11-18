@@ -61,10 +61,15 @@ def _get_session_duration(data: StationData, channel_no: int) -> float:
     return tx.duration_charging if tx else 0.0
 
 
-def _get_session_energy_kwh(data: StationData, channel_no: int) -> float:
+def _get_session_energy_kwh(data: StationData, channel_no: int) -> float | None:
     """Return energy delivered in active charging session (kWh)."""
     tx = _matching_active_tx(data, channel_no)
-    return tx.energy_delivered if tx else 0.0
+    if tx is not None:
+        return tx.energy_delivered
+    ch = data.channels.get(channel_no)
+    if ch and ch.status == GlobalStatus.CHARGING:
+        return None
+    return 0.0
 
 
 def _get_session_cost(data: StationData, channel_no: int) -> float:
