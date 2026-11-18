@@ -305,7 +305,7 @@ async def test_execute_query_reauth_on_401() -> None:
         token_expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
 
-    async def _mock_authenticate():
+    async def _mock_authenticate(**_kwargs: Any):
         client._access_token = "refreshed_token"
         client._token_expires_at = datetime.now(UTC) + timedelta(hours=1)
         return True
@@ -743,3 +743,19 @@ async def test_homeassistant_aiohttp_transport_passes_timeout() -> None:
     _, kwargs = shared_session.post.call_args
     assert isinstance(kwargs["timeout"], aiohttp.ClientTimeout)
     assert kwargs["timeout"].total == 25
+
+
+async def test_authenticate_skips_relogin_when_token_already_rotated() -> None:
+    """Test authenticate(force=True) skips login if another task already rotated token."""
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token="fresh_token",
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    with patch("gql.Client.execute_async", new_callable=AsyncMock) as mock_exec:
+        result = await client.authenticate(force=True, failed_token="stale_token")
+
+    assert result is True
+    mock_exec.assert_not_awaited()

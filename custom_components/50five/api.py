@@ -580,12 +580,24 @@ class FiftyFiveApiClient:
         )
         self._client = Client(transport=transport, fetch_schema_from_transport=False)
 
-    async def authenticate(self) -> bool:
+    async def authenticate(
+        self, *, force: bool = False, failed_token: str | None = None
+    ) -> bool:
         """Authenticate with the GraphQL API and acquire JWT access token."""
         async with self._auth_lock:
             # Check if another concurrent task refreshed the token while we waited
-            if self._access_token and not self.is_token_expired():
+            if (
+                self._access_token
+                and not self.is_token_expired()
+                and (
+                    not force
+                    or (failed_token is not None and self._access_token != failed_token)
+                )
+            ):
                 return True
+            if force:
+                self._access_token = None
+                self._token_expires_at = None
 
             _LOGGER.debug(
                 "Authenticating user %s against %s (device_id: %s)",
@@ -777,6 +789,7 @@ class FiftyFiveApiClient:
                 censor(variables or {}),
             )
 
+        used_token = self._access_token
         try:
             raw_result = await self._client.execute_async(
                 GraphQLRequest(
@@ -802,9 +815,7 @@ class FiftyFiveApiClient:
                 _LOGGER.warning(
                     "Access token rejected by backend, re-authenticating and retrying..."
                 )
-                self._access_token = None
-                self._token_expires_at = None
-                if await self.authenticate():
+                if await self.authenticate(force=True, failed_token=used_token):
                     return await self._execute_query(
                         document,
                         variables,
