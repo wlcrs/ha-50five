@@ -78,10 +78,10 @@ async def test_hcc_tariff_number_updates_and_refreshes_value(
 
     state = hass.states.get(entity_id)
     assert state is not None
-    assert state.state == "0.3"
+    assert state.state == "0.363"
     assert state.attributes["unit_of_measurement"] == "€/kWh"
-    assert state.attributes["min"] == 0.05
-    assert state.attributes["max"] == 0.75
+    assert state.attributes["min"] == 0.0605
+    assert state.attributes["max"] == 0.9075
 
     async def update_backend(station_id: str, tariff: float) -> bool:
         stations = mock_api_client.get_customer_charge_stations.return_value
@@ -109,7 +109,7 @@ async def test_hcc_tariff_number_updates_and_refreshes_value(
     )
 
     mock_api_client.update_hcc_tariff.assert_awaited_once_with(
-        MOCK_STATION_ID, 0.42
+        MOCK_STATION_ID, 0.3471
     )
     updated_state = hass.states.get(entity_id)
     assert updated_state is not None
@@ -121,7 +121,7 @@ async def test_hcc_tariff_number_uses_mobile_app_fallback_range(
     mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
-    """Test fallback limits are the app's raw, excluding-VAT range."""
+    """Test fallback limits apply VAT to the app's fallback range."""
     mock_api_client.get_reimbursement_tariff_range.return_value = None
     mock_config_entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
@@ -141,7 +141,7 @@ async def test_hcc_tariff_number_uses_mobile_app_fallback_range(
     state = hass.states.get(entity_id)
     assert state is not None
     assert state.attributes["min"] == 0.0001
-    assert state.attributes["max"] == 0.67
+    assert state.attributes["max"] == 0.8107
 
 
 async def test_hcc_tariff_number_falls_back_on_range_api_error(

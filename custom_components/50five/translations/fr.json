@@ -173,7 +173,7 @@
     },
     "number": {
       "hcc_tariff": {
-        "name": "Tarif HCC (hors TVA)"
+        "name": "Tarif HCC"
       }
     }
   },

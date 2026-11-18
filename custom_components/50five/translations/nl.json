@@ -173,7 +173,7 @@
     },
     "number": {
       "hcc_tariff": {
-        "name": "HCC-tarief (exclusief btw)"
+        "name": "HCC-tarief"
       }
     }
   },

@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import (
     DEFAULT_HCC_TARIFF_MAX,
     DEFAULT_HCC_TARIFF_MIN,
+    DEFAULT_VAT_MULTIPLIER,
     HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES,
 )
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
@@ -43,20 +44,25 @@ async def async_setup_entry(
             "Could not fetch reimbursement tariff range, using defaults: %s", err
         )
         tariff_range = None
-    tariff_min = (
+    raw_min = (
         tariff_range.min
         if tariff_range and tariff_range.min is not None
         else DEFAULT_HCC_TARIFF_MIN
     )
-    tariff_max = (
+    raw_max = (
         tariff_range.max
         if tariff_range and tariff_range.max is not None
         else DEFAULT_HCC_TARIFF_MAX
     )
 
     async_add_entities(
-        FiftyFiveHccTariffNumber(coordinator, spot_id, tariff_min, tariff_max)
-        for spot_id in coordinator.data
+        FiftyFiveHccTariffNumber(
+            coordinator,
+            spot_id,
+            round(raw_min * station_data.vat_multiplier, 4),
+            round(raw_max * station_data.vat_multiplier, 4),
+        )
+        for spot_id, station_data in coordinator.data.items()
     )
 
 
@@ -89,11 +95,18 @@ class FiftyFiveHccTariffNumber(FiftyFiveEntity, NumberEntity):
 
     @property
     def native_value(self) -> float | None:
-        """Return the net HCC tariff registered by the backend."""
+        """Return the VAT-inclusive HCC tariff."""
         station_data = self.coordinator.data.get(self._spot_id)
-        return station_data.raw_hcc_tariff if station_data else None
+        return station_data.hcc_tariff if station_data else None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Update the HCC tariff and refresh its verified backend value."""
-        await self.coordinator.client.update_hcc_tariff(self._spot_id, value)
+        """Convert the VAT-inclusive tariff to net and update the backend."""
+        station_data = (
+            self.coordinator.data.get(self._spot_id) if self.coordinator.data else None
+        )
+        vat_multiplier = (
+            station_data.vat_multiplier if station_data else DEFAULT_VAT_MULTIPLIER
+        )
+        net_tariff = round(value / vat_multiplier, 4)
+        await self.coordinator.client.update_hcc_tariff(self._spot_id, net_tariff)
         await self.coordinator.async_request_refresh()
