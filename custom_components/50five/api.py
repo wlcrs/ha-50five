@@ -90,7 +90,7 @@ def _query_text(document: Any) -> str:
     doc = getattr(document, "document", document)
     try:
         return print_ast(doc)
-    except TypeError, ValueError, AttributeError:
+    except (TypeError, ValueError, AttributeError):
         return str(document)
 
 
@@ -666,7 +666,7 @@ class FiftyFiveApiClient:
 
                 return True
 
-            except FiftyFiveAuthError, FiftyFiveConnectionError:
+            except (FiftyFiveAuthError, FiftyFiveConnectionError):
                 raise
             except (TransportServerError, TransportError) as err:
                 err_str = str(err).lower()
@@ -819,9 +819,7 @@ class FiftyFiveApiClient:
 
             raise FiftyFiveApiError(f"GraphQL execution error: {err}") from err
 
-    async def get_customer_charge_stations(
-        self, days_back: int = 30
-    ) -> list[ChargeStation]:
+    async def get_customer_charge_stations(self) -> list[ChargeStation]:
         """Retrieve customer charge stations."""
         response = await self._execute_query(
             GET_CUSTOMER_CHARGE_STATIONS_QUERY,
@@ -830,7 +828,7 @@ class FiftyFiveApiClient:
         return response.get_customer_charge_stations or []
 
     async def get_charge_station_details(
-        self, charge_station_id: str, days_back: int = 30
+        self, charge_station_id: str
     ) -> ChargeStation | None:
         """Retrieve detailed charge station information."""
         variables = {
