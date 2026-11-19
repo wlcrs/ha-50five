@@ -23,6 +23,7 @@ GetCustomerByIdResponse = api_mod.GetCustomerByIdResponse
 GetCustomerChargeCardsResponse = api_mod.GetCustomerChargeCardsResponse
 GetCustomerChargeStationsResponse = api_mod.GetCustomerChargeStationsResponse
 GetReimbursementTariffRangeResponse = api_mod.GetReimbursementTariffRangeResponse
+GetTransactionsResponse = api_mod.GetTransactionsResponse
 HardResetResponse = api_mod.HardResetResponse
 LmsActiveTransactionResponse = api_mod.LmsActiveTransactionResponse
 ResetParametersCacheResponse = api_mod.ResetParametersCacheResponse
@@ -146,9 +147,9 @@ def test_app_graphql_operation_names() -> None:
     assert "query GetCustomerChargeStations" in api_mod._query_text(
         api_mod.GET_CUSTOMER_CHARGE_STATIONS_QUERY
     )
-    assert "query GetChargeStationTransactions" in api_mod._query_text(
-        api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
-    )
+    tx_query_text = api_mod._query_text(api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY)
+    assert "query GetChargingHistory" in tx_query_text
+    assert "getTransactions(" in tx_query_text
 
 
 def test_transport_serializes_app_request_envelope() -> None:
@@ -456,51 +457,48 @@ async def test_api_query_methods() -> None:
 
     # 5. get_charge_station_transactions
     with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
-        mock_query.return_value = GetChargeStationByIdResponse.model_validate({
-            "getChargeStationById": {
-                "id": MOCK_STATION_ID,
-                "transactions": {
-                    "items": [
-                        {
-                            "id": "tx_test_1",
-                            "status": "Billable",
-                            "globalStatus": "GlobalStatusBillable",
+        mock_query.return_value = GetTransactionsResponse.model_validate({
+            "getTransactions": {
+                "hasNext": False,
+                "items": [
+                    {
+                        "id": "tx_test_1",
+                        "status": "Billable",
+                        "globalStatus": "GlobalStatusBillable",
+                        "type": None,
+                        "startDate": "2026-10-29T20:00:43+00:00",
+                        "lastUpdateDate": "2026-10-30T07:14:07+00:00",
+                        "totalDuration": 11.1861,
+                        "totalEnergy": 0,
+                        "totalIdleTime": 0,
+                        "homeCharging": True,
+                        "cardSnapshot": {
+                            "externalId": "BE*******Z9",
+                            "internalId": None,
+                            "contractId": "BE**************-2",
                             "type": None,
-                            "startDate": "2026-10-29T20:00:43+00:00",
-                            "lastUpdateDate": "2026-10-30T07:14:07+00:00",
-                            "totalDuration": 11.1861,
-                            "totalEnergy": 0,
-                            "totalIdleTime": 0,
-                            "homeCharging": True,
-                            "cardSnapshot": {
-                                "externalId": "BE*******Z9",
-                                "internalId": None,
-                                "contractId": "BE**************-2",
-                                "type": None,
+                        },
+                        "transactionPrices": [
+                            {
+                                "totalCost": 0,
+                                "type": "CpoCustomer",
+                                "vatPercentage": 0,
+                                "currency": {"code": "EUR"},
                             },
-                            "transactionPrices": [
-                                {
-                                    "totalCost": 0,
-                                    "type": "CpoCustomer",
-                                    "vatPercentage": 0,
-                                    "currency": {"code": "EUR"},
-                                },
-                                {
-                                    "totalCost": 0,
-                                    "type": "CpoProvider",
-                                    "vatPercentage": 0,
-                                    "currency": {"code": "EUR"},
-                                },
-                            ],
-                        }
-                    ]
-                },
+                            {
+                                "totalCost": 0,
+                                "type": "CpoProvider",
+                                "vatPercentage": 0,
+                                "currency": {"code": "EUR"},
+                            },
+                        ],
+                    }
+                ],
             }
         })
         txs = await client.get_charge_station_transactions(MOCK_STATION_ID)
         assert len(txs) == 1
         assert txs[0].id == "tx_test_1"
-        assert txs[0].total_duration == 11.1861
         assert txs[0].total_duration == 11.1861
         assert txs[0].total_energy == 0
         assert txs[0].type is None
@@ -510,9 +508,18 @@ async def test_api_query_methods() -> None:
         assert txs[0].currency == "EUR"
         query, variables = mock_query.await_args.args
         assert query == api_mod.GET_CHARGE_STATION_TRANSACTIONS_QUERY
-        assert variables["getChargeStationByIdId"] == MOCK_STATION_ID
-        assert variables["txFilters"]["itemsPerPage"] == 5
-        assert variables["txSort"] == {"startDate": "desc"}
+        assert mock_query.await_args.kwargs == {
+            "response_model": GetTransactionsResponse
+        }
+        tx_filters = variables["getTransactionsFilters"]
+        assert tx_filters["chargeStation"] == {"id": MOCK_STATION_ID}
+        assert tx_filters["itemsPerPage"] == 5
+        assert tx_filters["page"] == 1
+        assert "T" in tx_filters["dateFrom"]
+        assert "T" in tx_filters["dateTo"]
+        assert datetime.fromisoformat(tx_filters["dateFrom"]).tzinfo is not None
+        assert datetime.fromisoformat(tx_filters["dateTo"]).tzinfo is not None
+        assert variables["sort"] == {"startDate": "desc"}
 
 
 async def test_get_charge_cards_edge_cases() -> None:
@@ -809,3 +816,42 @@ async def test_get_vat_multiplier_does_not_cache_on_transient_error() -> None:
     ):
         assert await client.get_vat_multiplier() == 1.21
         assert await client.get_vat_multiplier() == 1.06
+
+
+async def test_get_charge_station_transactions_uses_full_iso_timestamps(
+    freezer,
+) -> None:
+    """Test transaction history queries use full ISO timestamps and root getTransactions."""
+    freezer.move_to("2026-11-19T14:35:20+00:00")
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+    )
+
+    with patch.object(client, "_execute_query", new_callable=AsyncMock) as mock_query:
+        mock_query.return_value = GetTransactionsResponse(get_transactions=None)
+        txs = await client.get_charge_station_transactions(MOCK_STATION_ID)
+        assert txs == []
+        _, variables = mock_query.await_args.args
+        assert variables == {
+            "getTransactionsFilters": {
+                "dateFrom": "2026-10-20T14:35:20+00:00",
+                "dateTo": "2026-11-19T14:35:20+00:00",
+                "itemsPerPage": 5,
+                "page": 1,
+                "chargeStation": {"id": MOCK_STATION_ID},
+            },
+            "sort": {"startDate": "desc"},
+        }
+
+        await client.get_charge_station_transactions(MOCK_STATION_ID, days_back=45)
+        _, clamped_variables = mock_query.await_args.args
+        assert (
+            clamped_variables["getTransactionsFilters"]["dateFrom"]
+            == "2026-10-20T14:35:20+00:00"
+        )
+        assert (
+            clamped_variables["getTransactionsFilters"]["dateTo"]
+            == "2026-11-19T14:35:20+00:00"
+        )

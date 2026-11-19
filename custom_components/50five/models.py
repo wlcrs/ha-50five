@@ -542,6 +542,12 @@ class GetChargeStationByIdResponse(_Model):
     get_charge_station_by_id: ChargeStation | None = None
 
 
+class GetTransactionsResponse(_Model):
+    """Response envelope for ``getTransactions``."""
+
+    get_transactions: TransactionCollection | None = None
+
+
 class LmsActiveTransactionResponse(_Model):
     """Response envelope for ``lmsActiveTransaction``."""
 

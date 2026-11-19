@@ -47,6 +47,7 @@ from .models import (
     GetCustomerChargeCardsResponse,
     GetCustomerChargeStationsResponse,
     GetReimbursementTariffRangeResponse,
+    GetTransactionsResponse,
     HardResetResponse,
     LmsActiveTransactionResponse,
     LoginMutationResponse,
@@ -239,40 +240,38 @@ fragment ChargeStationDetails on ChargeStation {
 """)
 
 GET_CHARGE_STATION_TRANSACTIONS_QUERY = gql("""
-query GetChargeStationTransactions($getChargeStationByIdId: ID!, $txFilters: TransactionFilter, $txSort: TransactionSort) {
-    getChargeStationById(id: $getChargeStationByIdId) {
-        id
-        transactions(filters: $txFilters, sort: $txSort) {
-            items {
-                id
-                status
-                globalStatus
-                type
-                startDate
-                lastUpdateDate
-                totalDuration
-                totalEnergy
-                totalIdleTime
-                homeCharging
-                cardSnapshot {
-                    externalId
-                    internalId
-                    contractId
-                    type
-                }
-                locationSnapshot {
-                    chargeStationName
-                    evse {
-                        id
-                    }
-                }
-                transactionPrices {
-                    totalCost
-                    type
-                    vatPercentage
-                    currency {
-                        code
-                    }
+query GetChargingHistory($getTransactionsFilters: TransactionFilter, $sort: TransactionSort) {
+  getTransactions(filters: $getTransactionsFilters, sort: $sort) {
+    hasNext
+    items {
+      id
+      status
+      globalStatus
+      type
+      startDate
+      lastUpdateDate
+      totalDuration
+      totalEnergy
+      totalIdleTime
+      homeCharging
+      cardSnapshot {
+        externalId
+        internalId
+        contractId
+        type
+      }
+      locationSnapshot {
+        chargeStationName
+        evse {
+          id
+        }
+      }
+      transactionPrices {
+        totalCost
+        type
+        vatPercentage
+        currency {
+          code
         }
       }
     }
@@ -874,29 +873,27 @@ class FiftyFiveApiClient:
     ) -> list[CompletedTransaction]:
         """Retrieve completed transactions for a specific charge station."""
         now = datetime.now(UTC)
-        date_from = (now - timedelta(days=min(days_back, 31))).strftime("%Y-%m-%d")
-        date_to = now.strftime("%Y-%m-%d")
+        date_from = now - timedelta(days=min(days_back, 30))
 
         variables = {
-            "getChargeStationByIdId": str(charge_station_id),
-            "txFilters": {
-                "dateFrom": date_from,
-                "dateTo": date_to,
+            "getTransactionsFilters": {
+                "dateFrom": date_from.isoformat(),
+                "dateTo": now.isoformat(),
                 "itemsPerPage": 5,
+                "page": 1,
+                "chargeStation": {
+                    "id": str(charge_station_id),
+                },
             },
-            "txSort": {"startDate": "desc"},
+            "sort": {"startDate": "desc"},
         }
         response = await self._execute_query(
             GET_CHARGE_STATION_TRANSACTIONS_QUERY,
             variables,
-            response_model=GetChargeStationByIdResponse,
+            response_model=GetTransactionsResponse,
         )
-        station = response.get_charge_station_by_id
-        return (
-            station.transactions.items
-            if station and station.transactions and station.transactions.items
-            else []
-        )
+        collection = response.get_transactions
+        return collection.items if collection and collection.items else []
 
     async def get_active_transaction(self) -> ActiveTransaction | None:
         """Retrieve active charging session telemetry as strongly typed model."""

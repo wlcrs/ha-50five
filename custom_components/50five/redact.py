@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .models import ToMask, ToRedact
 
 MASKED_KEYS = {
+    "id",
     "email",
     "getcustomerbyidid",
     "getchargestationbyidid",

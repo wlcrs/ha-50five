@@ -21,6 +21,7 @@ ChargeCard = models_mod.ChargeCard
 CardProvider = models_mod.CardProvider
 ChargeStationChannel = models_mod.ChargeStationChannel
 GetCustomerChargeCardsResponse = models_mod.GetCustomerChargeCardsResponse
+GetTransactionsResponse = models_mod.GetTransactionsResponse
 ActiveTransaction = models_mod.ActiveTransaction
 Location = models_mod.Location
 LoginResult = models_mod.LoginResult
@@ -85,6 +86,36 @@ def test_mask_value() -> None:
     assert censor(LoginResult(access_token="secret-token"))["access_token"] == (
         "<redacted>"
     )
+
+    assert censor({"getTransactionsFilters": {"chargeStation": {"id": "station_999"}}}) == {
+        "getTransactionsFilters": {
+            "chargeStation": {"id": mask_value("station_999")}
+        }
+    }
+    assert censor(
+        {
+            "getTransactions": {
+                "hasNext": False,
+                "items": [
+                    {
+                        "id": "tx_12345",
+                        "cardSnapshot": {"externalId": "NL-50F-123456-7"},
+                    }
+                ],
+            }
+        },
+        response_model=GetTransactionsResponse,
+    ) == {
+        "getTransactions": {
+            "hasNext": False,
+            "items": [
+                {
+                    "id": mask_value("tx_12345"),
+                    "cardSnapshot": {"externalId": mask_value("NL-50F-123456-7")},
+                }
+            ],
+        }
+    }
 
 
 async def test_diagnostics(
