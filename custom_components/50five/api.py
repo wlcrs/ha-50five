@@ -911,7 +911,10 @@ class FiftyFiveApiClient:
         return response.get_charge_station_by_id
 
     async def get_charge_station_transactions(
-        self, charge_station_id: str, days_back: int = 30
+        self,
+        charge_station_id: str,
+        days_back: int = 30,
+        items_per_page: int = 1,
     ) -> list[CompletedTransaction]:
         """Retrieve completed transactions for a specific charge station."""
         now = datetime.now(UTC)
@@ -921,7 +924,7 @@ class FiftyFiveApiClient:
             "getTransactionsFilters": {
                 "dateFrom": date_from.isoformat(),
                 "dateTo": now.isoformat(),
-                "itemsPerPage": 5,
+                "itemsPerPage": max(1, items_per_page),
                 "page": 1,
                 "chargeStation": {
                     "id": str(charge_station_id),

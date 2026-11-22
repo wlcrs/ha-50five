@@ -513,7 +513,7 @@ async def test_api_query_methods() -> None:
         }
         tx_filters = variables["getTransactionsFilters"]
         assert tx_filters["chargeStation"] == {"id": MOCK_STATION_ID}
-        assert tx_filters["itemsPerPage"] == 5
+        assert tx_filters["itemsPerPage"] == 1
         assert tx_filters["page"] == 1
         assert "T" in tx_filters["dateFrom"]
         assert "T" in tx_filters["dateTo"]
@@ -838,7 +838,7 @@ async def test_get_charge_station_transactions_uses_full_iso_timestamps(
             "getTransactionsFilters": {
                 "dateFrom": "2026-10-20T14:35:20+00:00",
                 "dateTo": "2026-11-19T14:35:20+00:00",
-                "itemsPerPage": 5,
+                "itemsPerPage": 1,
                 "page": 1,
                 "chargeStation": {"id": MOCK_STATION_ID},
             },
