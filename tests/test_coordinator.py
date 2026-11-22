@@ -252,3 +252,41 @@ async def test_coordinator_degrades_gracefully_when_cards_or_tx_details_fail(
 
     await coordinator._async_update_data()
     assert mock_api_client.get_charge_cards.await_count == 2
+
+
+async def test_coordinator_skips_active_transaction_when_all_stations_idle(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_stations: list[ChargeStation],
+) -> None:
+    """Test lmsActiveTransaction is skipped when all channels are idle."""
+    idle_stations = [
+        st.model_copy(
+            update={
+                "channels": [
+                    ch.model_copy(
+                        update={"global_status": models.ChannelGlobalStatus.AVAILABLE}
+                    )
+                    for ch in (st.channels or [])
+                ]
+            }
+        )
+        for st in mock_charge_stations
+    ]
+    mock_api_client.get_customer_charge_stations.return_value = idle_stations
+
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+    data = await coordinator._async_update_data()
+
+    mock_api_client.get_active_transaction.assert_not_awaited()
+    assert data[MOCK_STATION_ID].active_transaction is None
+
+    # Pending optimistic start SHOULD query lmsActiveTransaction even while channel is Available
+    coordinator.set_optimistic_charging_state(
+        MOCK_STATION_ID, "ch_999_1", True, card_id="NL-50F-123456-7"
+    )
+    await hass.async_block_till_done()
+    data2 = await coordinator._async_update_data()
+    mock_api_client.get_active_transaction.assert_awaited_once()
+    assert data2[MOCK_STATION_ID].active_transaction is not None

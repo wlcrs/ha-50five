@@ -30,6 +30,7 @@ from .models import (
     ChargeCard,
     ChargeStation,
     CompletedTransaction,
+    GlobalStatus,
     StationData,
     TariffRange,
     TransactionCollection,
@@ -388,6 +389,22 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         if storage_dirty:
             self._schedule_save_last_used_cards()
 
+    def _should_fetch_active_transaction(self, stations: list[ChargeStation]) -> bool:
+        """Return whether any station channel is active or optimistically starting."""
+        for station in stations:
+            for ch in station.channels or []:
+                if ch.status in (
+                    GlobalStatus.CHARGING,
+                    GlobalStatus.OCCUPIED,
+                    GlobalStatus.PREPARING,
+                ):
+                    return True
+        now = time.monotonic()
+        return any(
+            is_on and now < expires_at
+            for is_on, _, expires_at in self._optimistic_charging.values()
+        )
+
     async def _async_fetch_station_transactions(
         self, station: ChargeStation
     ) -> ChargeStation:
@@ -453,12 +470,13 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 _LOGGER.warning("No charge stations found for this account")
                 return {}
 
-            # Query active transaction telemetry (returns ActiveTransaction | None)
+            # Query active transaction telemetry only when a station is active or starting
             active_transaction: ActiveTransaction | None = None
-            try:
-                active_transaction = await self.client.get_active_transaction()
-            except FiftyFiveError as tx_err:
-                _LOGGER.debug("Could not fetch active transaction: %s", tx_err)
+            if self._should_fetch_active_transaction(stations):
+                try:
+                    active_transaction = await self.client.get_active_transaction()
+                except FiftyFiveError as tx_err:
+                    _LOGGER.debug("Could not fetch active transaction: %s", tx_err)
 
             # Query full LMS transaction details (including cardSnapshot) once per
             # active transactionId, degrading gracefully on failure.
