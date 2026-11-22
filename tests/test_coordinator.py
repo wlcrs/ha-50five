@@ -183,3 +183,52 @@ async def test_coordinator_scopes_active_transaction_by_channel_id(
     data = await coordinator._async_update_data()
     assert data[MOCK_STATION_ID].active_transaction is None
     assert data[MOCK_MULTI_STATION_ID].active_transaction is not None
+
+
+async def test_coordinator_fetches_charge_cards_and_active_transaction_details(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_cards,
+) -> None:
+    """Test coordinator fetches account cards and active transaction details."""
+    from .const import MOCK_CARD_ID, MOCK_GET_TRANSACTION_RESPONSE
+
+    active_details = models.CompletedTransaction.model_validate(
+        MOCK_GET_TRANSACTION_RESPONSE["getTransaction"]
+    )
+    mock_api_client.get_transaction.return_value = active_details
+
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+    data = await coordinator._async_update_data()
+
+    assert coordinator.charge_cards == mock_charge_cards
+    mock_api_client.get_transaction.assert_awaited_once_with("tx_active_1")
+    assert data[MOCK_STATION_ID].active_transaction_details == active_details
+    assert MOCK_CARD_ID in data[MOCK_STATION_ID].get_backend_active_card_ids(1)
+
+
+async def test_coordinator_degrades_gracefully_when_cards_or_tx_details_fail(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test coordinator succeeds when get_charge_cards or get_transaction fails."""
+    mock_api_client.get_charge_cards.side_effect = FiftyFiveError("Cards failed")
+    mock_api_client.get_transaction.side_effect = FiftyFiveError("Tx detail failed")
+
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+    data = await coordinator._async_update_data()
+
+    assert len(data) == 2
+    assert coordinator.charge_cards == []
+    assert data[MOCK_STATION_ID].active_transaction_details is None
+
+    # Subsequent poll retries get_charge_cards until it succeeds, then caches it
+    mock_api_client.get_charge_cards.side_effect = None
+    await coordinator._async_update_data()
+    assert len(coordinator.charge_cards) == 2
+    assert mock_api_client.get_charge_cards.await_count == 2
+
+    await coordinator._async_update_data()
+    assert mock_api_client.get_charge_cards.await_count == 2

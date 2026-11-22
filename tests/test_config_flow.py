@@ -13,7 +13,7 @@ const = importlib.import_module("custom_components.50five.const")
 exceptions = importlib.import_module("custom_components.50five.exceptions")
 
 CONF_ACCESS_TOKEN = const.CONF_ACCESS_TOKEN
-CONF_CARD_ID = const.CONF_CARD_ID
+CONF_CARD_IDS = const.CONF_CARD_IDS
 CONF_CONFIRM_OWNERSHIP = const.CONF_CONFIRM_OWNERSHIP
 CONF_CUSTOMER_ID = const.CONF_CUSTOMER_ID
 CONF_DEVICE_ID = const.CONF_DEVICE_ID
@@ -26,17 +26,18 @@ FiftyFiveError = exceptions.FiftyFiveError
 
 from .const import (
     MOCK_CARD_ID,
+    MOCK_CARD_ID_2,
     MOCK_USER_STEP_INPUT,
     MOCK_USERNAME,
 )
 
 
-async def test_full_user_flow_success(
+async def test_full_user_flow_success_multiple_cards(
     hass: HomeAssistant,
     mock_api_client: AsyncMock,
     mock_setup_entry: AsyncMock,
 ) -> None:
-    """Test full user step into card step with successful entry creation."""
+    """Test user step into multi-card step with successful entry creation."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -53,22 +54,22 @@ async def test_full_user_flow_success(
     result3 = await hass.config_entries.flow.async_configure(
         result2["flow_id"],
         user_input={
-            CONF_CARD_ID: MOCK_CARD_ID,
+            CONF_CARD_IDS: [MOCK_CARD_ID, MOCK_CARD_ID_2],
             CONF_CONFIRM_OWNERSHIP: True,
         },
     )
     assert result3["type"] is FlowResultType.CREATE_ENTRY
     assert result3["title"] == MOCK_USERNAME
     assert result3["data"][CONF_USERNAME] == MOCK_USERNAME
-    assert result3["data"][CONF_CARD_ID] == MOCK_CARD_ID
+    assert result3["data"][CONF_CARD_IDS] == [MOCK_CARD_ID, MOCK_CARD_ID_2]
 
 
-async def test_user_flow_skip_card(
+async def test_user_flow_skip_cards(
     hass: HomeAssistant,
     mock_api_client: AsyncMock,
     mock_setup_entry: AsyncMock,
 ) -> None:
-    """Test user step then skipping card selection."""
+    """Test user step then leaving all cards unchecked."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -81,19 +82,19 @@ async def test_user_flow_skip_card(
     result3 = await hass.config_entries.flow.async_configure(
         result2["flow_id"],
         user_input={
-            CONF_CARD_ID: "",
+            CONF_CARD_IDS: [],
             CONF_CONFIRM_OWNERSHIP: False,
         },
     )
     assert result3["type"] is FlowResultType.CREATE_ENTRY
-    assert result3["data"][CONF_CARD_ID] == ""
+    assert result3["data"][CONF_CARD_IDS] == []
 
 
 async def test_card_step_must_confirm_ownership(
     hass: HomeAssistant,
     mock_api_client: AsyncMock,
 ) -> None:
-    """Test card step shows error when card selected without confirmation."""
+    """Test card step shows error when one or more cards are selected without confirmation."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -105,7 +106,7 @@ async def test_card_step_must_confirm_ownership(
     result3 = await hass.config_entries.flow.async_configure(
         result2["flow_id"],
         user_input={
-            CONF_CARD_ID: MOCK_CARD_ID,
+            CONF_CARD_IDS: [MOCK_CARD_ID, MOCK_CARD_ID_2],
             CONF_CONFIRM_OWNERSHIP: False,
         },
     )
@@ -211,7 +212,7 @@ async def test_reconfigure_flow_success(
     mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
-    """Test successful reconfiguration flow."""
+    """Test successful reconfiguration flow through multi-card step."""
     mock_config_entry.add_to_hass(hass)
 
     result = await hass.config_entries.flow.async_init(
@@ -238,13 +239,56 @@ async def test_reconfigure_flow_success(
         result3 = await hass.config_entries.flow.async_configure(
             result2["flow_id"],
             user_input={
-                CONF_CARD_ID: "NL-50F-999999-9",
+                CONF_CARD_IDS: [MOCK_CARD_ID_2],
                 CONF_CONFIRM_OWNERSHIP: True,
             },
         )
     assert result3["type"] is FlowResultType.ABORT
     assert result3["reason"] == "reconfigure_successful"
-    assert mock_config_entry.data[CONF_CARD_ID] == "NL-50F-999999-9"
+    assert mock_config_entry.data[CONF_CARD_IDS] == [MOCK_CARD_ID_2]
+    assert CONF_CARD_IDS not in mock_config_entry.options
+
+
+async def test_reconfigure_clears_stale_options_card_ids(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test reconfigure clears stale CONF_CARD_IDS in options so new cards take effect."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=MOCK_USERNAME,
+        data={CONF_USERNAME: MOCK_USERNAME, CONF_PASSWORD: "old"},
+        options={CONF_CARD_IDS: [MOCK_CARD_ID]},
+        entry_id="reconfig_opts_entry",
+        unique_id=f"{DOMAIN}_{MOCK_USERNAME}",
+        version=2,
+        minor_version=2,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        },
+    )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={CONF_USERNAME: MOCK_USERNAME, CONF_PASSWORD: "new"},
+    )
+    with patch.object(hass.config_entries, "async_reload", return_value=True):
+        result3 = await hass.config_entries.flow.async_configure(
+            result2["flow_id"],
+            user_input={
+                CONF_CARD_IDS: [MOCK_CARD_ID_2],
+                CONF_CONFIRM_OWNERSHIP: True,
+            },
+        )
+    assert result3["type"] is FlowResultType.ABORT
+    assert result3["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_CARD_IDS] == [MOCK_CARD_ID_2]
+    assert CONF_CARD_IDS not in entry.options
 
 
 async def test_reauth_flow_success(
@@ -307,7 +351,7 @@ async def test_options_flow(
     mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
-    """Test options flow to update charge card."""
+    """Test options flow to update selected charge cards."""
     mock_config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -320,23 +364,23 @@ async def test_options_flow(
     result2 = await hass.config_entries.options.async_configure(
         result["flow_id"],
         user_input={
-            CONF_CARD_ID: "NL-50F-999999-9",
+            CONF_CARD_IDS: [MOCK_CARD_ID_2],
             CONF_CONFIRM_OWNERSHIP: False,
         },
     )
     assert result2["type"] is FlowResultType.FORM
     assert result2["errors"] == {CONF_CONFIRM_OWNERSHIP: "must_confirm_ownership"}
 
-    # 2. Confirmed ownership
+    # 2. Confirmed ownership with multiple cards
     result3 = await hass.config_entries.options.async_configure(
         result["flow_id"],
         user_input={
-            CONF_CARD_ID: "NL-50F-999999-9",
+            CONF_CARD_IDS: [MOCK_CARD_ID, MOCK_CARD_ID_2],
             CONF_CONFIRM_OWNERSHIP: True,
         },
     )
     assert result3["type"] is FlowResultType.CREATE_ENTRY
-    assert mock_config_entry.options[CONF_CARD_ID] == "NL-50F-999999-9"
+    assert mock_config_entry.options[CONF_CARD_IDS] == [MOCK_CARD_ID, MOCK_CARD_ID_2]
 
 
 async def test_reconfigure_flow_errors(

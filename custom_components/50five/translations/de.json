@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Ladekarte auswählen",
-        "description": "Wählen Sie die Standard-Ladekarte für Ladevorgänge aus Home Assistant aus. Sie können diesen Schritt überspringen, wenn Sie jetzt keine Ladekarte festlegen möchten.",
+        "title": "Ladekarten auswählen",
+        "description": "Wählen Sie eine oder mehrere Ladekarten aus, die als Schalter in Home Assistant verfügbar gemacht werden sollen. Sie können alle Karten abgewählt lassen, wenn Sie jetzt keine Ladekarten konfigurieren möchten.",
         "data": {
-          "card_id": "Ladekarte",
-          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte Ladekarte in meinem Besitz befindet und ich der Eigentümer bin."
+          "card_ids": "Ladekarten",
+          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte(n) Ladekarte(n) in meinem Besitz befinden und ich der Eigentümer bin."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Ungültiger Benutzername oder ungültiges Passwort",
       "cannot_connect": "Verbindung zum GraphQL-API-Endpunkt nicht möglich",
-      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte bestätigen, um fortzufahren",
+      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte(n) bestätigen, um fortzufahren",
       "unknown": "Unerwarteter Fehler aufgetreten"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "50five-Optionen",
-        "description": "Wählen Sie die Standard-Ladekarte zum Starten von Ladevorgängen aus.",
+        "description": "Wählen Sie eine oder mehrere Ladekarten aus, die als Schalter in Home Assistant verfügbar gemacht werden sollen.",
         "data": {
-          "card_id": "Ladekarte",
-          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte Ladekarte in meinem Besitz befindet und ich der Eigentümer bin."
+          "card_ids": "Ladekarten",
+          "confirm_ownership": "Hiermit bestätige ich, dass sich die ausgewählte(n) Ladekarte(n) in meinem Besitz befinden und ich der Eigentümer bin."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte bestätigen, um fortzufahren",
+      "must_confirm_ownership": "Sie müssen den Besitz der ausgewählten Ladekarte(n) bestätigen, um fortzufahren",
       "unknown": "Unerwarteter Fehler aufgetreten"
     }
   },

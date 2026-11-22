@@ -8,6 +8,7 @@ const = importlib.import_module("custom_components.50five.const")
 
 CONF_ACCESS_TOKEN = const.CONF_ACCESS_TOKEN
 CONF_CARD_ID = const.CONF_CARD_ID
+CONF_CARD_IDS = const.CONF_CARD_IDS
 CONF_CONFIRM_OWNERSHIP = const.CONF_CONFIRM_OWNERSHIP
 CONF_CUSTOMER_ID = const.CONF_CUSTOMER_ID
 CONF_DEVICE_ID = const.CONF_DEVICE_ID
@@ -19,6 +20,7 @@ MOCK_PASSWORD = "test-password-123"
 MOCK_DEVICE_ID = "550e8400-e29b-41d4-a716-446655440000"
 MOCK_CUSTOMER_ID = "cust_12345"
 MOCK_CARD_ID = "NL-50F-123456-7"
+MOCK_CARD_ID_2 = "NL-50F-999999-9"
 MOCK_STATION_ID = "station_999"
 MOCK_MULTI_STATION_ID = "station_multi_888"
 
@@ -39,16 +41,12 @@ MOCK_CONFIG_DATA = {
     CONF_ACCESS_TOKEN: MOCK_ACCESS_TOKEN,
     CONF_TOKEN_EXPIRES_AT: MOCK_TOKEN_EXPIRES_AT,
     CONF_CARD_ID: MOCK_CARD_ID,
+    CONF_CARD_IDS: [MOCK_CARD_ID, MOCK_CARD_ID_2],
 }
 
 MOCK_USER_STEP_INPUT = {
     CONF_USERNAME: MOCK_USERNAME,
     CONF_PASSWORD: MOCK_PASSWORD,
-}
-
-MOCK_CARD_STEP_INPUT = {
-    CONF_CARD_ID: MOCK_CARD_ID,
-    CONF_CONFIRM_OWNERSHIP: True,
 }
 
 MOCK_LOGIN_RESPONSE = {
@@ -260,6 +258,7 @@ MOCK_CHARGE_STATION_DETAILS_RESPONSE = {
 
 MOCK_ACTIVE_TRANSACTION_RESPONSE = {
     "lmsActiveTransaction": {
+        "transactionId": "tx_active_1",
         "updateDate": "2024-08-28T10:30:00Z",
         "address": "Street 1",
         "zipCode": "1234AB",
@@ -276,5 +275,31 @@ MOCK_ACTIVE_TRANSACTION_RESPONSE = {
         ],
         "tariffId": "tariff_1",
         "channelVisibleId": 1,
+    }
+}
+
+MOCK_GET_TRANSACTION_RESPONSE = {
+    "getTransaction": {
+        "id": "tx_active_1",
+        "status": "Billable",
+        "globalStatus": "GlobalStatusActive",
+        "type": "Local",
+        "startDate": "2024-08-28T09:00:00Z",
+        "lastUpdateDate": "2024-08-28T10:30:00Z",
+        "totalDuration": 1.5,
+        "totalEnergy": 12.4,
+        "totalIdleTime": 0.0,
+        "homeCharging": True,
+        "cardSnapshot": {
+            "externalId": MOCK_CARD_ID,
+            "internalId": "INT_001",
+            "contractId": "CON_001",
+            "type": "RFID",
+        },
+        "locationSnapshot": {
+            "chargeStationName": "Home Charger Single",
+            "evse": {"id": "NL*50F*E999*1"},
+        },
+        "transactionPrices": [],
     }
 }

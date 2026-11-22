@@ -47,6 +47,7 @@ from .models import (
     GetCustomerChargeCardsResponse,
     GetCustomerChargeStationsResponse,
     GetReimbursementTariffRangeResponse,
+    GetTransactionResponse,
     GetTransactionsResponse,
     HardResetResponse,
     LmsActiveTransactionResponse,
@@ -141,6 +142,8 @@ query GetCustomerChargecards($getCustomerByIdId: ID!) {
 fragment Card on Card {
   id
   externalId
+  internalId
+  contractId
   roaming
   state
   type
@@ -174,6 +177,7 @@ fragment ChargeStation on ChargeStation {
       evseId
       channelNo
       globalStatus
+      lastStatusChangeDate
     }
     location {
       countryDetails {
@@ -307,6 +311,44 @@ fragment ActiveTransaction on Transaction {
     channelId
     channelVisibleId
     evseId
+    loyaltyCardIdentifier
+}
+""")
+
+GET_TRANSACTION_BY_ID_QUERY = gql("""
+query GetTransactionById($id: ID!) {
+  getTransaction(id: $id) {
+    id
+    status
+    globalStatus
+    type
+    startDate
+    lastUpdateDate
+    totalDuration
+    totalEnergy
+    totalIdleTime
+    homeCharging
+    cardSnapshot {
+      externalId
+      internalId
+      contractId
+      type
+    }
+    locationSnapshot {
+      chargeStationName
+      evse {
+        id
+      }
+    }
+    transactionPrices {
+      totalCost
+      type
+      vatPercentage
+      currency {
+        code
+      }
+    }
+  }
 }
 """)
 
@@ -902,6 +944,17 @@ class FiftyFiveApiClient:
             response_model=LmsActiveTransactionResponse,
         )
         return response.lms_active_transaction
+
+    async def get_transaction(
+        self, transaction_id: str
+    ) -> CompletedTransaction | None:
+        """Retrieve a single LMS transaction by ID (including card snapshot)."""
+        response = await self._execute_query(
+            GET_TRANSACTION_BY_ID_QUERY,
+            {"id": str(transaction_id)},
+            response_model=GetTransactionResponse,
+        )
+        return response.get_transaction
 
     async def get_charge_cards(self) -> list[ChargeCard]:
         """Retrieve customer charge cards."""

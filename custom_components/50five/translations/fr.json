@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Sélectionner la carte de recharge",
-        "description": "Sélectionnez la carte de recharge par défaut à utiliser pour les sessions de charge depuis Home Assistant. Vous pouvez ignorer cette étape si vous ne souhaitez pas configurer de carte pour le moment.",
+        "title": "Sélectionner les cartes de recharge",
+        "description": "Sélectionnez une ou plusieurs cartes de recharge à exposer comme interrupteurs dans Home Assistant. Vous pouvez laisser toutes les cartes décochées si vous ne souhaitez pas configurer de carte pour le moment.",
         "data": {
-          "card_id": "Carte de recharge",
-          "confirm_ownership": "Je confirme par la présente que la carte de recharge sélectionnée est en ma possession et que j'en suis le propriétaire."
+          "card_ids": "Cartes de recharge",
+          "confirm_ownership": "Je confirme par la présente que la ou les cartes de recharge sélectionnées sont en ma possession et que j'en suis le propriétaire."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
       "cannot_connect": "Impossible de se connecter au point de terminaison de l'API GraphQL",
-      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la carte sélectionnée pour continuer",
+      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la ou des cartes sélectionnées pour continuer",
       "unknown": "Une erreur inattendue s'est produite"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "Options 50five",
-        "description": "Sélectionnez la carte de recharge par défaut pour démarrer les sessions de charge.",
+        "description": "Sélectionnez une ou plusieurs cartes de recharge à exposer comme interrupteurs dans Home Assistant.",
         "data": {
-          "card_id": "Carte de recharge",
-          "confirm_ownership": "Je confirme par la présente que la carte de recharge sélectionnée est en ma possession et que j'en suis le propriétaire."
+          "card_ids": "Cartes de recharge",
+          "confirm_ownership": "Je confirme par la présente que la ou les cartes de recharge sélectionnées sont en ma possession et que j'en suis le propriétaire."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la carte sélectionnée pour continuer",
+      "must_confirm_ownership": "Vous devez confirmer être propriétaire de la ou des cartes sélectionnées pour continuer",
       "unknown": "Une erreur inattendue s'est produite"
     }
   },

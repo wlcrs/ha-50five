@@ -148,6 +148,7 @@ def mock_api_client(
             side_effect=_mock_get_transactions
         )
         client.get_active_transaction = AsyncMock(return_value=mock_active_transaction)
+        client.get_transaction = AsyncMock(return_value=None)
         client.get_charge_cards = AsyncMock(return_value=mock_charge_cards)
         client.get_tokens = AsyncMock(return_value=mock_charge_cards)
         client.start_charging = AsyncMock(return_value=True)

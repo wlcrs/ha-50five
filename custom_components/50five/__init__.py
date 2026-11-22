@@ -16,18 +16,26 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import service
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .api import FiftyFiveApiClient
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CARD_ID,
+    CONF_CARD_IDS,
     CONF_CUSTOMER_ID,
     CONF_DEVICE_ID,
     CONF_TOKEN_EXPIRES_AT,
     DOMAIN,
 )
-from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
+from .coordinator import (
+    STORAGE_VERSION,
+    FiftyFiveConfigEntry,
+    FiftyFiveCoordinator,
+    active_cards_store_key,
+    get_configured_card_ids,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,20 +105,58 @@ def _resolve_fiftyfive_target(
     return (coordinator, spot_id, channel_id)
 
 
+def _resolve_switch_card_id(
+    hass: HomeAssistant,
+    entity_id: str,
+    spot_id: str,
+) -> str | None:
+    """Extract the card ID encoded in a per-card charging switch unique_id."""
+    entity_entry = er.async_get(hass).async_get(entity_id)
+    if (
+        not entity_entry
+        or entity_entry.domain != Platform.SWITCH
+        or not entity_entry.unique_id
+    ):
+        return None
+    suffix = entity_entry.unique_id.removeprefix(f"{spot_id}_")
+    suffix = re.sub(r"^ch\d+_", "", suffix)
+    if suffix.startswith("charging_") and len(suffix) > len("charging_"):
+        return suffix.removeprefix("charging_")
+    return None
+
+
 async def _async_extract_targets(
     hass: HomeAssistant, call: ServiceCall
-) -> list[tuple[FiftyFiveCoordinator, str, str]]:
+) -> list[tuple[FiftyFiveCoordinator, str, str, str | None]]:
     """Extract list of unique valid target tuples for a service call."""
     entity_ids = await service.async_extract_entity_ids(call)
 
-    targets: dict[tuple[int, str, str], tuple[FiftyFiveCoordinator, str, str]] = {}
+    targets: dict[
+        tuple[int, str, str], tuple[FiftyFiveCoordinator, str, str, str | None]
+    ] = {}
+    card_ids_by_key: dict[tuple[int, str, str], set[str | None]] = {}
     for entity_id in entity_ids:
         target = _resolve_fiftyfive_target(hass, entity_id)
         if target:
             coord, spot_id, channel_id = target
-            targets[(id(coord), spot_id, channel_id)] = target
+            key = (id(coord), spot_id, channel_id)
+            card_id = _resolve_switch_card_id(hass, entity_id, spot_id)
+            card_ids_by_key.setdefault(key, set()).add(card_id)
+            targets[key] = (coord, spot_id, channel_id, card_id)
 
-    return list(targets.values())
+    result: list[tuple[FiftyFiveCoordinator, str, str, str | None]] = []
+    for key, (coord, spot_id, channel_id, _) in targets.items():
+        found_cards = card_ids_by_key[key]
+        # Only infer a switch's card when all targeted entities on this channel
+        # point to that single card switch (not when targeting a whole device).
+        inferred_card = (
+            next(iter(found_cards))
+            if len(found_cards) == 1
+            else None
+        )
+        result.append((coord, spot_id, channel_id, inferred_card))
+
+    return result
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -127,15 +173,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
 
-        for coordinator, spot_id, channel_id in targets:
-            config_entry = coordinator.config_entry
-            effective_card = (
-                card_id
-                or config_entry.options.get(CONF_CARD_ID)
-                or config_entry.data.get(CONF_CARD_ID)
+        for coordinator, spot_id, channel_id, target_card_id in targets:
+            configured_cards = get_configured_card_ids(
+                coordinator.config_entry.data, coordinator.config_entry.options
             )
+            fallback_card = configured_cards[0] if configured_cards else None
+            effective_card = card_id or target_card_id or fallback_card or None
             await coordinator.client.start_charging(spot_id, channel_id, effective_card)
-            coordinator.set_optimistic_charging_state(spot_id, channel_id, True)
+            coordinator.set_optimistic_charging_state(
+                spot_id,
+                channel_id,
+                True,
+                card_id=effective_card,
+            )
             coordinators_to_refresh.add(coordinator)
 
         for coordinator in coordinators_to_refresh:
@@ -151,7 +201,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
 
-        for coordinator, spot_id, channel_id in targets:
+        for coordinator, spot_id, channel_id, _ in targets:
             await coordinator.client.stop_charging(spot_id, channel_id)
             coordinator.set_optimistic_charging_state(spot_id, channel_id, False)
             coordinators_to_refresh.add(coordinator)
@@ -213,12 +263,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) ->
     )
 
     coordinator = FiftyFiveCoordinator(hass, entry, client)
+    await coordinator.async_load_stored_cards()
     await coordinator.async_config_entry_first_refresh()
 
     # Modern HA 2024.4+ runtime data storage
     entry.runtime_data = coordinator
 
-    # Remove legacy sensor.<station>_hcc_enabled entries migrated to binary_sensor
+    # Remove legacy entities and switches for cards that were unchecked
+    selected_card_ids = get_configured_card_ids(entry.data, entry.options)
+    expected_switch_unique_ids = (
+        {
+            (
+                f"{spot_id}_ch{ch}_charging_{card_id}"
+                if sd.num_channels > 1
+                else f"{spot_id}_charging_{card_id}"
+            )
+            for spot_id, sd in coordinator.data.items()
+            for ch in range(1, sd.num_channels + 1)
+            for card_id in selected_card_ids
+        }
+        if coordinator.data
+        else None
+    )
     ent_reg = er.async_get(hass)
     for entity_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         if entity_entry.domain == Platform.SENSOR and entity_entry.unique_id.endswith(
@@ -229,12 +295,74 @@ async def async_setup_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) ->
                 entity_entry.entity_id,
             )
             ent_reg.async_remove(entity_entry.entity_id)
+        elif (
+            entity_entry.domain == Platform.SWITCH
+            and expected_switch_unique_ids is not None
+            and entity_entry.unique_id not in expected_switch_unique_ids
+        ):
+            _LOGGER.info(
+                "Removing stale switch entity %s",
+                entity_entry.entity_id,
+            )
+            ent_reg.async_remove(entity_entry.entity_id)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
+async def async_migrate_entry(
+    hass: HomeAssistant, config_entry: FiftyFiveConfigEntry
+) -> bool:
+    """Migrate old config entries to the current minor version."""
+    if config_entry.version == 2 and config_entry.minor_version < 2:
+        new_data = dict(config_entry.data)
+        new_options = dict(config_entry.options)
+
+        if CONF_CARD_IDS not in new_data and CONF_CARD_ID in new_data:
+            legacy_card = new_data.pop(CONF_CARD_ID)
+            new_data[CONF_CARD_IDS] = (
+                [legacy_card.strip()]
+                if isinstance(legacy_card, str) and legacy_card.strip()
+                else []
+            )
+        else:
+            new_data.pop(CONF_CARD_ID, None)
+
+        if CONF_CARD_IDS not in new_options and CONF_CARD_ID in new_options:
+            legacy_opt = new_options.pop(CONF_CARD_ID)
+            new_options[CONF_CARD_IDS] = (
+                [legacy_opt.strip()]
+                if isinstance(legacy_opt, str) and legacy_opt.strip()
+                else []
+            )
+        else:
+            new_options.pop(CONF_CARD_ID, None)
+
+        hass.config_entries.async_update_entry(
+            config_entry,
+            data=new_data,
+            options=new_options,
+            minor_version=2,
+        )
+        _LOGGER.debug(
+            "Migrated 50five config entry %s to version 2.2", config_entry.entry_id
+        )
+
+    return True
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) -> bool:
     """Unload a 50five config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    coordinator: FiftyFiveCoordinator | None = getattr(entry, "runtime_data", None)
+    if coordinator is not None:
+        await coordinator.async_flush_stored_cards()
+    return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: FiftyFiveConfigEntry) -> None:
+    """Remove persisted storage when a 50five config entry is deleted."""
+    await Store(
+        hass, STORAGE_VERSION, active_cards_store_key(entry.entry_id)
+    ).async_remove()

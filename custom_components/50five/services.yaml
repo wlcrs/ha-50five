@@ -8,7 +8,7 @@ start_charging:
   fields:
     card_id:
       name: RFID Card ID
-      description: Optional RFID card ID to use for this charging session. If not provided, uses the default card configured in the integration.
+      description: Optional RFID card ID to use for this charging session. If not provided, uses the targeted card switch's card or the first configured card.
       required: false
       selector:
         text:

@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Laadpas selecteren",
-        "description": "Selecteer de standaard laadpas voor laadsessies vanuit Home Assistant. U kunt deze stap overslaan als u nu geen laadpas wilt instellen.",
+        "title": "Laadpassen selecteren",
+        "description": "Selecteer een of meer laadpassen die u als schakelaars in Home Assistant wilt tonen. U kunt alle laadpassen uitgevinkt laten als u nu geen laadpassen wilt instellen.",
         "data": {
-          "card_id": "Laadpas",
-          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas in mijn bezit is en dat ik de eigenaar ben."
+          "card_ids": "Laadpassen",
+          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas(sen) in mijn bezit zijn en dat ik de eigenaar ben."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Ongeldig e-mailadres of wachtwoord",
       "cannot_connect": "Kan geen verbinding maken met het GraphQL API-eindpunt",
-      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas om door te gaan",
+      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas(sen) om door te gaan",
       "unknown": "Er is een onverwachte fout opgetreden"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "50five opties",
-        "description": "Selecteer de standaard laadpas voor het starten van laadsessies.",
+        "description": "Selecteer een of meer laadpassen die u als schakelaars in Home Assistant wilt tonen.",
         "data": {
-          "card_id": "Laadpas",
-          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas in mijn bezit is en dat ik de eigenaar ben."
+          "card_ids": "Laadpassen",
+          "confirm_ownership": "Hierbij bevestig ik dat de gekozen laadpas(sen) in mijn bezit zijn en dat ik de eigenaar ben."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas om door te gaan",
+      "must_confirm_ownership": "U dient te bevestigen dat u eigenaar bent van de gekozen laadpas(sen) om door te gaan",
       "unknown": "Er is een onverwachte fout opgetreden"
     }
   },
@@ -199,4 +199,3 @@
     }
   }
 }
-

@@ -143,6 +143,7 @@ class PriceElement(_Model):
 class ActiveTransaction(_Model):
     """Selected fields from GraphQL ``Transaction`` via ``lmsActiveTransaction``."""
 
+    transaction_id: MaskedStr | None = None
     update_date: AwareDatetime | None = None
     address: RedactedStr | None = None
     zip_code: RedactedStr | None = None
@@ -159,6 +160,7 @@ class ActiveTransaction(_Model):
     channel_id: MaskedStr | None = None
     channel_visible_id: int | MaskedStr | None = None
     evse_id: MaskedStr | None = None
+    loyalty_card_identifier: MaskedStr | None = None
 
 
 
@@ -226,6 +228,21 @@ class CompletedTransaction(_Model):
             or self.card_snapshot.internal_id
             or self.card_snapshot.contract_id
         )
+
+    @property
+    def card_identifiers(self) -> set[str]:
+        """Return all non-empty card identifiers from the snapshot."""
+        if self.card_snapshot is None:
+            return set()
+        return {
+            ident
+            for ident in (
+                self.card_snapshot.external_id,
+                self.card_snapshot.internal_id,
+                self.card_snapshot.contract_id,
+            )
+            if ident
+        }
 
     @property
     def total_cost(self) -> float | None:
@@ -335,6 +352,7 @@ class ChargeStationChannel(_Model):
     channel_no: int = 1
     evse_id: MaskedStr | None = None
     global_status: ChannelGlobalStatus | None = None
+    last_status_change_date: AwareDatetime | None = None
     cable_lock: str | None = None
     soc: int | None = None
 
@@ -396,12 +414,74 @@ class StationData(_Model):
     station: ChargeStation
     channels: dict[int, ChargeStationChannel]
     active_transaction: ActiveTransaction | None = None
+    active_transaction_details: CompletedTransaction | None = None
     vat_multiplier: float = 1.0
 
     @property
     def num_channels(self) -> int:
         """Total channel count."""
         return max(1, len(self.channels))
+
+    def _active_tx_matches_channel(self, channel_no: int) -> bool:
+        """Return whether ``active_transaction`` applies to the given channel."""
+        tx = self.active_transaction
+        if tx is None:
+            return False
+        ch = self.channels.get(channel_no)
+        if tx.channel_id is not None and ch is not None and ch.id:
+            return ch.id == tx.channel_id
+        if tx.evse_id is not None and ch is not None and ch.evse_id:
+            return ch.evse_id == tx.evse_id
+        if tx.channel_visible_id is not None:
+            return str(tx.channel_visible_id) == str(channel_no)
+        return True
+
+    def is_channel_charging(self, channel_no: int) -> bool:
+        """Return whether the backend reports an active session on this channel."""
+        ch = self.channels.get(channel_no)
+        if ch and ch.status in (
+            GlobalStatus.CHARGING,
+            GlobalStatus.OCCUPIED,
+            GlobalStatus.PREPARING,
+        ):
+            return True
+
+        return self._active_tx_matches_channel(channel_no)
+
+    def get_backend_active_card_ids(self, channel_no: int) -> set[str]:
+        """Return any active card identifiers reported by the backend for this channel."""
+        card_ids: set[str] = set()
+        ch = self.channels.get(channel_no)
+
+        if self._active_tx_matches_channel(channel_no):
+            if self.active_transaction_details is not None:
+                card_ids.update(self.active_transaction_details.card_identifiers)
+            if (
+                self.active_transaction is not None
+                and self.active_transaction.loyalty_card_identifier
+            ):
+                card_ids.add(self.active_transaction.loyalty_card_identifier)
+
+        if self.station.transactions and self.station.transactions.items:
+            for tx in self.station.transactions.items:
+                if tx.global_status not in (
+                    TransactionGlobalStatus.ACTIVE,
+                    TransactionGlobalStatus.PENDING,
+                ):
+                    continue
+                tx_evse_id = (
+                    tx.location_snapshot.evse.id
+                    if tx.location_snapshot and tx.location_snapshot.evse
+                    else None
+                )
+                if (
+                    tx_evse_id is None
+                    or self.num_channels == 1
+                    or (ch is not None and ch.evse_id == tx_evse_id)
+                ):
+                    card_ids.update(tx.card_identifiers)
+
+        return card_ids
 
     @property
     def hcc_tariff(self) -> float | None:
@@ -489,6 +569,26 @@ class ChargeCard(_Model):
         return self.external_id or self.contract_id or self.internal_id or self.id or ""
 
     @property
+    def known_identifiers(self) -> set[str]:
+        """Return all non-empty identifiers associated with this card."""
+        return {
+            ident
+            for ident in (
+                self.external_id,
+                self.contract_id,
+                self.internal_id,
+                self.id,
+            )
+            if ident
+        }
+
+    def matches_identifier(self, card_id: str | None) -> bool:
+        """Return whether a card identifier matches any identifier of this card."""
+        if not card_id:
+            return False
+        return card_id in self.known_identifiers
+
+    @property
     def display_name(self) -> str:
         """Formatted human-readable display name for the card."""
         ident = self.identifier
@@ -546,6 +646,12 @@ class GetTransactionsResponse(_Model):
     """Response envelope for ``getTransactions``."""
 
     get_transactions: TransactionCollection | None = None
+
+
+class GetTransactionResponse(_Model):
+    """Response envelope for ``getTransaction``."""
+
+    get_transaction: CompletedTransaction | None = None
 
 
 class LmsActiveTransactionResponse(_Model):

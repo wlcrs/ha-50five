@@ -14,18 +14,25 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import (
+    SelectOptionDict,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .api import FiftyFiveApiClient
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_CARD_ID,
+    CONF_CARD_IDS,
     CONF_CONFIRM_OWNERSHIP,
     CONF_CUSTOMER_ID,
     CONF_DEVICE_ID,
     CONF_TOKEN_EXPIRES_AT,
     DOMAIN,
 )
-from .coordinator import FiftyFiveCoordinator
+from .coordinator import FiftyFiveCoordinator, get_configured_card_ids
 from .exceptions import FiftyFiveAuthError, FiftyFiveConnectionError, FiftyFiveError
 from .models import ChargeCard
 
@@ -53,32 +60,62 @@ def _build_entry_data(
     return data
 
 
-def _build_card_options(cards: list[ChargeCard], empty_label: str) -> dict[str, str]:
-    """Build selector options mapping card identifier to display name."""
-    card_options: dict[str, str] = {"": empty_label}
+def _build_card_options(
+    cards: list[ChargeCard],
+    existing_ids: list[str] | None = None,
+) -> dict[str, str]:
+    """Build multi-select options mapping card identifier to display name."""
+    card_options: dict[str, str] = {}
     for card in cards:
         ident = card.identifier
         if ident:
             card_options[ident] = card.display_name
+    for ident in existing_ids or []:
+        if ident and ident not in card_options:
+            card_options[ident] = ident
     return card_options
+
+
+def _build_card_selector(
+    cards: list[ChargeCard],
+    existing_ids: list[str] | None = None,
+) -> SelectSelector:
+    """Build a multi-select list selector for charge cards."""
+    options_map = _build_card_options(cards, existing_ids)
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[
+                SelectOptionDict(value=ident, label=label)
+                for ident, label in options_map.items()
+            ],
+            multiple=True,
+            mode=SelectSelectorMode.LIST,
+        )
+    )
 
 
 def _validate_card_selection(
     user_input: dict[str, Any],
-) -> tuple[str, dict[str, str]]:
-    """Validate card selection and ownership confirmation."""
-    selected_card = (user_input.get(CONF_CARD_ID) or "").strip()
+) -> tuple[list[str], dict[str, str]]:
+    """Validate multi-card selection and ownership confirmation."""
+    raw_selected = user_input.get(CONF_CARD_IDS) or []
+    selected_cards = [
+        card.strip()
+        for card in raw_selected
+        if isinstance(card, str) and card.strip()
+    ]
     confirmed = bool(user_input.get(CONF_CONFIRM_OWNERSHIP))
     errors: dict[str, str] = {}
-    if selected_card and not confirmed:
+    if selected_cards and not confirmed:
         errors[CONF_CONFIRM_OWNERSHIP] = "must_confirm_ownership"
-    return selected_card, errors
+    return selected_cards, errors
 
 
 class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for 50five GraphQL."""
 
     VERSION = 2
+    MINOR_VERSION = 2
 
     def __init__(self) -> None:
         """Initialize config flow with a fresh persistent device ID."""
@@ -174,15 +211,24 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            selected_card, errors = _validate_card_selection(user_input)
+            selected_cards, errors = _validate_card_selection(user_input)
             if not errors:
                 if self._reconfig_entry:
+                    new_data = {
+                        **self._reconfig_entry.data,
+                        **self._data,
+                        CONF_CARD_IDS: selected_cards,
+                    }
+                    new_data.pop(CONF_CARD_ID, None)
+                    new_options = {
+                        k: v
+                        for k, v in self._reconfig_entry.options.items()
+                        if k not in (CONF_CARD_ID, CONF_CARD_IDS)
+                    }
                     return self.async_update_reload_and_abort(
                         self._reconfig_entry,
-                        data_updates={
-                            **self._data,
-                            CONF_CARD_ID: selected_card,
-                        },
+                        data=new_data,
+                        options=new_options,
                         reason="reconfigure_successful",
                     )
 
@@ -190,16 +236,26 @@ class FiftyFiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=self._data[CONF_USERNAME],
                     data={
                         **self._data,
-                        CONF_CARD_ID: selected_card,
+                        CONF_CARD_IDS: selected_cards,
                     },
                 )
 
-        card_options = _build_card_options(self._cards, "None (skip)")
+        current_cards = (
+            get_configured_card_ids(
+                self._reconfig_entry.data, self._reconfig_entry.options
+            )
+            if self._reconfig_entry
+            else []
+        )
 
         schema = vol.Schema(
             {
-                vol.Optional(CONF_CARD_ID, default=""): vol.In(card_options),
-                vol.Optional(CONF_CONFIRM_OWNERSHIP, default=False): bool,
+                vol.Optional(
+                    CONF_CARD_IDS, default=current_cards
+                ): _build_card_selector(self._cards, current_cards),
+                vol.Optional(
+                    CONF_CONFIRM_OWNERSHIP, default=bool(current_cards)
+                ): bool,
             }
         )
 
@@ -320,11 +376,11 @@ class FiftyFiveOptionsFlowHandler(OptionsFlowWithReload):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            selected_card, errors = _validate_card_selection(user_input)
+            selected_cards, errors = _validate_card_selection(user_input)
             if not errors:
                 return self.async_create_entry(
                     title="",
-                    data={CONF_CARD_ID: selected_card},
+                    data={CONF_CARD_IDS: selected_cards},
                 )
 
         cards: list[ChargeCard] = []
@@ -337,17 +393,18 @@ class FiftyFiveOptionsFlowHandler(OptionsFlowWithReload):
             except FiftyFiveError as err:
                 _LOGGER.warning("Could not fetch charge cards in options flow: %s", err)
 
-        current_card = self.config_entry.options.get(
-            CONF_CARD_ID, self.config_entry.data.get(CONF_CARD_ID, "")
+        current_cards = get_configured_card_ids(
+            self.config_entry.data, self.config_entry.options
         )
-        card_options = _build_card_options(cards, "None (no card configured)")
-        if current_card and current_card not in card_options:
-            card_options[current_card] = current_card
 
         schema = vol.Schema(
             {
-                vol.Optional(CONF_CARD_ID, default=current_card): vol.In(card_options),
-                vol.Optional(CONF_CONFIRM_OWNERSHIP, default=bool(current_card)): bool,
+                vol.Optional(
+                    CONF_CARD_IDS, default=current_cards
+                ): _build_card_selector(cards, current_cards),
+                vol.Optional(
+                    CONF_CONFIRM_OWNERSHIP, default=bool(current_cards)
+                ): bool,
             }
         )
 

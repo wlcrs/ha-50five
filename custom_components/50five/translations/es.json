@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Seleccionar tarjeta de carga",
-        "description": "Selecciona la tarjeta de carga predeterminada para las sesiones de carga desde Home Assistant. Puedes omitir este paso si no deseas configurar una tarjeta ahora.",
+        "title": "Seleccionar tarjetas de carga",
+        "description": "Selecciona una o más tarjetas de carga para exponerlas como interruptores en Home Assistant. Puedes dejar todas sin marcar si no deseas configurar ninguna tarjeta ahora.",
         "data": {
-          "card_id": "Tarjeta de carga",
-          "confirm_ownership": "Por la presente confirmo que la tarjeta de carga seleccionada está en mi posesión y que soy su propietario."
+          "card_ids": "Tarjetas de carga",
+          "confirm_ownership": "Por la presente confirmo que la(s) tarjeta(s) de carga seleccionada(s) está(n) en mi posesión y que soy su propietario."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Usuario o contraseña no válidos",
       "cannot_connect": "No se puede conectar al punto de enlace de la API GraphQL",
-      "must_confirm_ownership": "Debes confirmar la propiedad de la tarjeta seleccionada para continuar",
+      "must_confirm_ownership": "Debes confirmar la propiedad de la(s) tarjeta(s) seleccionada(s) para continuar",
       "unknown": "Se ha producido un error inesperado"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "Opciones de 50five",
-        "description": "Selecciona la tarjeta de carga predeterminada para iniciar sesiones de carga.",
+        "description": "Selecciona una o más tarjetas de carga para exponerlas como interruptores en Home Assistant.",
         "data": {
-          "card_id": "Tarjeta de carga",
-          "confirm_ownership": "Por la presente confirmo que la tarjeta de carga seleccionada está en mi posesión y que soy su propietario."
+          "card_ids": "Tarjetas de carga",
+          "confirm_ownership": "Por la presente confirmo que la(s) tarjeta(s) de carga seleccionada(s) está(n) en mi posesión y que soy su propietario."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "Debes confirmar la propiedad de la tarjeta seleccionada para continuar",
+      "must_confirm_ownership": "Debes confirmar la propiedad de la(s) tarjeta(s) seleccionada(s) para continuar",
       "unknown": "Se ha producido un error inesperado"
     }
   },

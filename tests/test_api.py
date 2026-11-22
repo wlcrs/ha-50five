@@ -855,3 +855,27 @@ async def test_get_charge_station_transactions_uses_full_iso_timestamps(
             clamped_variables["getTransactionsFilters"]["dateTo"]
             == "2026-11-19T14:35:20+00:00"
         )
+
+
+async def test_get_transaction_by_id() -> None:
+    """Test get_transaction queries getTransaction and validates LmsTransaction."""
+    from .const import MOCK_CARD_ID, MOCK_GET_TRANSACTION_RESPONSE
+
+    client = FiftyFiveApiClient(
+        username=MOCK_USERNAME,
+        password=MOCK_PASSWORD,
+        access_token=MOCK_ACCESS_TOKEN,
+    )
+    mock_gql_client = MagicMock()
+    mock_gql_client.execute_async = AsyncMock(
+        return_value=MOCK_GET_TRANSACTION_RESPONSE
+    )
+    client._client = mock_gql_client
+
+    tx = await client.get_transaction("tx_active_1")
+    assert tx is not None
+    assert tx.id == "tx_active_1"
+    assert tx.card_id == MOCK_CARD_ID
+    assert MOCK_CARD_ID in tx.card_identifiers
+    request = mock_gql_client.execute_async.await_args.args[0]
+    assert request.variable_values == {"id": "tx_active_1"}

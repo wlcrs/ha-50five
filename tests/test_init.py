@@ -301,22 +301,36 @@ async def test_service_start_charging_sets_coordinator_optimistic_state(
     mock_config_entry: MockConfigEntry,
     mock_api_client: AsyncMock,
 ) -> None:
-    """Test 50five.start_charging sets optimistic state on coordinator."""
+    """Test 50five.start_charging sets optimistic state for the matching card switch."""
     await async_setup(hass, {})
     mock_config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
-    entity_id = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_123456_7"
-    assert hass.states.get(entity_id).state == "off"
+    card1_entity = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_123456_7"
+    card2_entity = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_999999_9"
+    assert hass.states.get(card1_entity).state == "off"
+    assert hass.states.get(card2_entity).state == "off"
 
+    # Calling start_charging on card1_entity with explicit card_id for card 2 turns on card 2 only
     await hass.services.async_call(
         DOMAIN,
         "start_charging",
-        {"entity_id": entity_id},
+        {"entity_id": card1_entity, "card_id": "NL-50F-999999-9"},
         blocking=True,
     )
-    assert hass.states.get(entity_id).state == "on"
+    assert hass.states.get(card2_entity).state == "on"
+    assert hass.states.get(card1_entity).state == "off"
+
+    # Calling start_charging targeting card1_entity without card_id uses card 1
+    await hass.services.async_call(
+        DOMAIN,
+        "start_charging",
+        {"entity_id": card1_entity},
+        blocking=True,
+    )
+    assert hass.states.get(card1_entity).state == "on"
+    assert hass.states.get(card2_entity).state == "off"
 
 
 async def test_resolve_target_with_underscore_in_spot_id(
@@ -370,4 +384,99 @@ async def test_setup_entry_removes_legacy_hcc_enabled_sensor(
             "binary_sensor", DOMAIN, f"{MOCK_STATION_ID}_hcc_enabled"
         )
         is not None
+    )
+
+
+async def test_setup_entry_removes_legacy_and_unchecked_card_switches(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test legacy single charging switches and unchecked card switches are removed on setup."""
+    mock_config_entry.add_to_hass(hass)
+    ent_reg = er.async_get(hass)
+    legacy_single = ent_reg.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{MOCK_STATION_ID}_charging",
+        config_entry=mock_config_entry,
+    )
+    unchecked_card = ent_reg.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{MOCK_STATION_ID}_charging_NL-50F-UNCHECKED",
+        config_entry=mock_config_entry,
+    )
+
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert ent_reg.async_get(legacy_single.entity_id) is None
+    assert ent_reg.async_get(unchecked_card.entity_id) is None
+    assert (
+        ent_reg.async_get_entity_id(
+            "switch", DOMAIN, f"{MOCK_STATION_ID}_charging_{MOCK_CARD_ID}"
+        )
+        is not None
+    )
+
+
+async def test_migrate_entry_v2_1_to_v2_2(
+    hass: HomeAssistant,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test legacy CONF_CARD_ID is migrated to CONF_CARD_IDS at minor_version 2."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=MOCK_USERNAME,
+        data={
+            CONF_USERNAME: MOCK_USERNAME,
+            CONF_PASSWORD: MOCK_PASSWORD,
+            CONF_ACCESS_TOKEN: "mock_token",
+            CONF_CARD_ID: MOCK_CARD_ID,
+        },
+        options={CONF_CARD_ID: "NL-50F-999999-9"},
+        entry_id="migrate_v2_1",
+        unique_id=f"{DOMAIN}_{MOCK_USERNAME}",
+        version=2,
+        minor_version=1,
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.minor_version == 2
+    assert CONF_CARD_ID not in entry.data
+    assert entry.data[const.CONF_CARD_IDS] == [MOCK_CARD_ID]
+    assert CONF_CARD_ID not in entry.options
+    assert entry.options[const.CONF_CARD_IDS] == ["NL-50F-999999-9"]
+
+
+async def test_remove_entry_deletes_active_cards_store(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+) -> None:
+    """Test removing a config entry deletes its persisted active cards storage."""
+    from homeassistant.helpers.storage import Store
+
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    removed_keys: list[str] = []
+    orig_remove = Store.async_remove
+
+    async def _track_remove(self: Store) -> None:
+        removed_keys.append(self.key)
+        await orig_remove(self)
+
+    with patch.object(Store, "async_remove", _track_remove):
+        await hass.config_entries.async_remove(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert (
+        coordinator_mod.active_cards_store_key(mock_config_entry.entry_id)
+        in removed_keys
     )

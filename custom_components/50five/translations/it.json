@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Seleziona tessera di ricarica",
-        "description": "Seleziona la tessera di ricarica predefinita per le sessioni di ricarica da Home Assistant. Puoi saltare questo passaggio se non desideri configurare una tessera ora.",
+        "title": "Seleziona tessere di ricarica",
+        "description": "Seleziona una o più tessere di ricarica da esporre come interruttori in Home Assistant. Puoi lasciare tutte le tessere deselezionate se non desideri configurare alcuna tessera ora.",
         "data": {
-          "card_id": "Tessera di ricarica",
-          "confirm_ownership": "Confermo che la tessera di ricarica selezionata è in mio possesso e che ne sono il proprietario."
+          "card_ids": "Tessere di ricarica",
+          "confirm_ownership": "Confermo che la/le tessera/e di ricarica selezionata/e è/sono in mio possesso e che ne sono il proprietario."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Nome utente o password non validi",
       "cannot_connect": "Impossibile connettersi all'endpoint API GraphQL",
-      "must_confirm_ownership": "Devi confermare di essere il proprietario della tessera selezionata per procedere",
+      "must_confirm_ownership": "Devi confermare di essere il proprietario della/delle tessera/e selezionata/e per procedere",
       "unknown": "Si è verificato un errore imprevisto"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "Opzioni 50five",
-        "description": "Seleziona la tessera di ricarica predefinita per avviare le sessioni di ricarica.",
+        "description": "Seleziona una o più tessere di ricarica da esporre come interruttori in Home Assistant.",
         "data": {
-          "card_id": "Tessera di ricarica",
-          "confirm_ownership": "Confermo che la tessera di ricarica selezionata è in mio possesso e che ne sono il proprietario."
+          "card_ids": "Tessere di ricarica",
+          "confirm_ownership": "Confermo che la/le tessera/e di ricarica selezionata/e è/sono in mio possesso e che ne sono il proprietario."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "Devi confermare di essere il proprietario della tessera selezionata per procedere",
+      "must_confirm_ownership": "Devi confermare di essere il proprietario della/delle tessera/e selezionata/e per procedere",
       "unknown": "Si è verificato un errore imprevisto"
     }
   },

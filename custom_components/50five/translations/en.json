@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Select charge card",
-        "description": "Select the default charge card to use for charging sessions from this Home Assistant instance. You may skip this step if you do not want to configure a charge card at this time.",
+        "title": "Select charge cards",
+        "description": "Select one or more charge cards to expose as switches in Home Assistant. You may leave all cards unchecked if you do not want to configure any charge cards at this time.",
         "data": {
-          "card_id": "Charge card",
-          "confirm_ownership": "I hereby confirm that the selected charge card is in my possession and that I am the owner."
+          "card_ids": "Charge cards",
+          "confirm_ownership": "I hereby confirm that the selected charge card(s) are in my possession and that I am the owner."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Invalid username or password",
       "cannot_connect": "Cannot connect to GraphQL API endpoint",
-      "must_confirm_ownership": "You must confirm ownership of the selected charge card to proceed",
+      "must_confirm_ownership": "You must confirm ownership of the selected charge card(s) to proceed",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "50five options",
-        "description": "Select the default charge card to use for starting charging sessions.",
+        "description": "Select one or more charge cards to expose as switches in Home Assistant.",
         "data": {
-          "card_id": "Charge card",
-          "confirm_ownership": "I hereby confirm that the selected charge card is in my possession and that I am the owner."
+          "card_ids": "Charge cards",
+          "confirm_ownership": "I hereby confirm that the selected charge card(s) are in my possession and that I am the owner."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "You must confirm ownership of the selected charge card to proceed",
+      "must_confirm_ownership": "You must confirm ownership of the selected charge card(s) to proceed",
       "unknown": "Unexpected error occurred"
     }
   },
@@ -184,7 +184,7 @@
       "fields": {
         "card_id": {
           "name": "RFID card ID",
-          "description": "Optional RFID card ID to use for this charging session. If not provided, uses the default card configured in the integration."
+          "description": "Optional RFID card ID to use for this charging session. If not provided, uses the targeted card switch's card or the first configured card."
         }
       }
     },

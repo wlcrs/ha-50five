@@ -10,11 +10,11 @@
         }
       },
       "card": {
-        "title": "Wybierz kartę ładowania",
-        "description": "Wybierz domyślną kartę ładowania dla sesji ładowania z Home Assistant. Możesz pominąć ten krok, jeśli nie chcesz teraz konfigurować karty.",
+        "title": "Wybierz karty ładowania",
+        "description": "Wybierz jedną lub więcej kart ładowania, które mają być widoczne jako przełączniki w Home Assistant. Możesz pozostawić wszystkie karty niezaznaczone, jeśli nie chcesz teraz konfigurować żadnych kart.",
         "data": {
-          "card_id": "Karta ładowania",
-          "confirm_ownership": "Niniejszym potwierdzam, że wybrana karta ładowania znajduje się w moim posiadaniu i jestem jej właścicielem."
+          "card_ids": "Karty ładowania",
+          "confirm_ownership": "Niniejszym potwierdzam, że wybrana(-e) karta(-y) ładowania znajduje(-ą) się w moim posiadaniu i jestem jej/ich właścicielem."
         }
       },
       "reconfigure": {
@@ -36,7 +36,7 @@
     "error": {
       "invalid_auth": "Nieprawidłowa nazwa użytkownika lub hasło",
       "cannot_connect": "Nie można połączyć z punktem końcowym API GraphQL",
-      "must_confirm_ownership": "Musisz potwierdzić własność wybranej karty ładowania, aby kontynuować",
+      "must_confirm_ownership": "Musisz potwierdzić własność wybranej(-ych) karty/kart ładowania, aby kontynuować",
       "unknown": "Wystąpił nieoczekiwany błąd"
     },
     "abort": {
@@ -49,15 +49,15 @@
     "step": {
       "init": {
         "title": "Opcje 50five",
-        "description": "Wybierz domyślną kartę ładowania do rozpoczynania sesji ładowania.",
+        "description": "Wybierz jedną lub więcej kart ładowania, które mają być widoczne jako przełączniki w Home Assistant.",
         "data": {
-          "card_id": "Karta ładowania",
-          "confirm_ownership": "Niniejszym potwierdzam, że wybrana karta ładowania znajduje się w moim posiadaniu i jestem jej właścicielem."
+          "card_ids": "Karty ładowania",
+          "confirm_ownership": "Niniejszym potwierdzam, że wybrana(-e) karta(-y) ładowania znajduje(-ą) się w moim posiadaniu i jestem jej/ich właścicielem."
         }
       }
     },
     "error": {
-      "must_confirm_ownership": "Musisz potwierdzić własność wybranej karty ładowania, aby kontynuować",
+      "must_confirm_ownership": "Musisz potwierdzić własność wybranej(-ych) karty/kart ładowania, aby kontynuować",
       "unknown": "Wystąpił nieoczekiwany błąd"
     }
   },

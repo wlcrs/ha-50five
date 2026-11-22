@@ -8,7 +8,13 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ACCESS_TOKEN, CONF_CARD_ID, CONF_CUSTOMER_ID, CONF_DEVICE_ID
+from .const import (
+    CONF_ACCESS_TOKEN,
+    CONF_CARD_ID,
+    CONF_CARD_IDS,
+    CONF_CUSTOMER_ID,
+    CONF_DEVICE_ID,
+)
 from .coordinator import FiftyFiveConfigEntry, FiftyFiveCoordinator
 from .redact import censor, mask_value
 
@@ -17,6 +23,7 @@ TO_REDACT = {
     CONF_PASSWORD,
     CONF_USERNAME,
     CONF_CARD_ID,
+    CONF_CARD_IDS,
     CONF_CUSTOMER_ID,
     CONF_DEVICE_ID,
     "title",

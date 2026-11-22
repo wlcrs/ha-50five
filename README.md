@@ -21,9 +21,18 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 ## Features
 
 ### 🔌 Charging Control (Switches)
-* **Start & Stop Charging**: Control charging sessions per channel/connector directly from Home Assistant.
-* **RFID Card Support**: Start charging using a default configured RFID card or specify a custom card ID per session.
-* **Multi-Connector Support**: Automatically handles single and multi-channel charge stations with separate switches per channel.
+* **Per-Card Switches**: Select one or more charge cards from your 50five account during setup (or later via **Configure**); each selected card is exposed as its own charging switch per channel/connector, named with the card ID (e.g. `Charge with card NL-50F-...` / `Laden met laadpas NL-50F-...`). Only checked cards are exposed in Home Assistant.
+* **Start & Stop Charging**: Turn on a card's switch to start a charging session with that card, or turn it off to stop the active session.
+* **Multi-Connector Support**: Automatically handles single and multi-channel charge stations with separate per-card switches per channel.
+
+> [!IMPORTANT]
+> **Known limitation — Detecting which card is actively charging:**
+>
+> In most cases, 50five does not report which charge card is being used while a charging session is still in progress (it only becomes available after the session finishes).
+>
+> Here is how the card switches behave as a result:
+> * **Started from Home Assistant** (using a card switch or the `50five.start_charging` service): the integration remembers which card you used and keeps that card's switch **on** while the session is active.
+> * **Started with a physical card or via the 50five app**: unless 50five reports the active card for your account, the integration cannot tell which card is in use. In that case, **none of the card switches will turn on** (an informational message is logged). You can still see that the station is charging via the **Status** sensor, and stop the session using the `50five.stop_charging` service.
 
 ### 🔘 Action Buttons
 * **Unlock Connector**: Remotely unlock the charging cable connector (available per channel).
@@ -69,7 +78,7 @@ The integration registers custom services under the `50five` domain for automati
 
 ### 🔍 Diagnostics & Troubleshooting
 * **Home Assistant Diagnostics**: Download redacted diagnostic data directly from the device/integration settings.
-* **Reconfiguration & Options**: Update credentials or change default RFID card ID on the fly without re-adding the integration.
+* **Reconfiguration & Options**: Update credentials or check/uncheck which charge cards are exposed on the fly without re-adding the integration.
 
 ---
 
@@ -94,7 +103,7 @@ The integration registers custom services under the `50five` domain for automati
 1. In Home Assistant, navigate to **Settings** > **Devices & Services** > **Add Integration**.
 2. Search for **50five**.
 3. Step 1 (Credentials): Enter your 50five account credentials (**Email** and **Password**).
-4. Step 2 (Charge Card): Select your default charge card from the cards linked to your account and check the confirmation box (*"I hereby confirm that the selected charge card is in my possession and that I am the owner"*). This step can be skipped if you do not wish to link a charge card at this time.
+4. Step 2 (Charge Cards): Check one or more charge cards linked to your account that you want to expose as switches in Home Assistant, and check the ownership confirmation box (*"I hereby confirm that the selected charge card(s) are in my possession and that I am the owner"*). You may leave all cards unchecked if you do not wish to expose any charging switches at this time.
 
 > [!NOTE]
-> The charging switch entity is only created if a charge card is selected and configured, and its name reflects the active card (e.g. `Charge with card NL-50F-...` / `Laden met laadpas NL-50F-...`). You can configure or change your card at any time from the integration's **Configure** (options) menu.
+> Only the charge cards you check are exposed as switch entities (per channel), and each switch name reflects its card ID (e.g. `Charge with card NL-50F-...` / `Laden met laadpas NL-50F-...`). You can add or remove cards at any time from the integration's **Configure** (options) menu; unchecked cards are automatically removed.
