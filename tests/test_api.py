@@ -821,7 +821,7 @@ async def test_get_vat_multiplier_does_not_cache_on_transient_error() -> None:
 async def test_get_charge_station_transactions_uses_full_iso_timestamps(
     freezer,
 ) -> None:
-    """Test transaction history queries use full ISO timestamps and root getTransactions."""
+    """Test transaction history queries use full ISO timestamps and 1-month windows."""
     freezer.move_to("2026-11-19T14:35:20+00:00")
     client = FiftyFiveApiClient(
         username=MOCK_USERNAME,
@@ -836,7 +836,7 @@ async def test_get_charge_station_transactions_uses_full_iso_timestamps(
         _, variables = mock_query.await_args.args
         assert variables == {
             "getTransactionsFilters": {
-                "dateFrom": "2026-10-20T14:35:20+00:00",
+                "dateFrom": "2026-10-19T14:35:20+00:00",
                 "dateTo": "2026-11-19T14:35:20+00:00",
                 "itemsPerPage": 1,
                 "page": 1,
@@ -845,16 +845,95 @@ async def test_get_charge_station_transactions_uses_full_iso_timestamps(
             "sort": {"startDate": "desc"},
         }
 
-        await client.get_charge_station_transactions(MOCK_STATION_ID, days_back=45)
-        _, clamped_variables = mock_query.await_args.args
+        # Month-end clamping (March 31 -> February 28 in non-leap year 2026)
+        freezer.move_to("2026-03-31T12:00:00+00:00")
+        await client.get_charge_station_transactions(MOCK_STATION_ID)
+        _, feb_variables = mock_query.await_args.args
         assert (
-            clamped_variables["getTransactionsFilters"]["dateFrom"]
-            == "2026-10-20T14:35:20+00:00"
+            feb_variables["getTransactionsFilters"]["dateFrom"]
+            == "2026-02-28T12:00:00+00:00"
         )
         assert (
-            clamped_variables["getTransactionsFilters"]["dateTo"]
+            feb_variables["getTransactionsFilters"]["dateTo"]
+            == "2026-03-31T12:00:00+00:00"
+        )
+
+        # Explicit date_from and date_to
+        freezer.move_to("2026-11-19T14:35:20+00:00")
+        explicit_from = datetime(2026, 9, 1, 8, 0, 0, tzinfo=UTC)
+        explicit_to = datetime(2026, 9, 15, 18, 30, 0, tzinfo=UTC)
+        await client.get_charge_station_transactions(
+            MOCK_STATION_ID, date_from=explicit_from, date_to=explicit_to
+        )
+        _, explicit_variables = mock_query.await_args.args
+        assert (
+            explicit_variables["getTransactionsFilters"]["dateFrom"]
+            == "2026-09-01T08:00:00+00:00"
+        )
+        assert (
+            explicit_variables["getTransactionsFilters"]["dateTo"]
+            == "2026-09-15T18:30:00+00:00"
+        )
+
+        # date_from alone: clamps to min(now, add_one_month(date_from))
+        older_from = datetime(2026, 8, 10, 9, 0, 0, tzinfo=UTC)
+        await client.get_charge_station_transactions(
+            MOCK_STATION_ID, date_from=older_from
+        )
+        _, older_from_vars = mock_query.await_args.args
+        assert (
+            older_from_vars["getTransactionsFilters"]["dateFrom"]
+            == "2026-08-10T09:00:00+00:00"
+        )
+        assert (
+            older_from_vars["getTransactionsFilters"]["dateTo"]
+            == "2026-09-10T09:00:00+00:00"
+        )
+
+        recent_from = datetime(2026, 11, 10, 9, 0, 0, tzinfo=UTC)
+        await client.get_charge_station_transactions(
+            MOCK_STATION_ID, date_from=recent_from
+        )
+        _, recent_from_vars = mock_query.await_args.args
+        assert (
+            recent_from_vars["getTransactionsFilters"]["dateFrom"]
+            == "2026-11-10T09:00:00+00:00"
+        )
+        assert (
+            recent_from_vars["getTransactionsFilters"]["dateTo"]
             == "2026-11-19T14:35:20+00:00"
         )
+
+        # date_to alone: computes subtract_one_month(date_to)
+        only_to = datetime(2026, 10, 5, 16, 0, 0, tzinfo=UTC)
+        await client.get_charge_station_transactions(MOCK_STATION_ID, date_to=only_to)
+        _, only_to_vars = mock_query.await_args.args
+        assert (
+            only_to_vars["getTransactionsFilters"]["dateFrom"]
+            == "2026-09-05T16:00:00+00:00"
+        )
+        assert (
+            only_to_vars["getTransactionsFilters"]["dateTo"]
+            == "2026-10-05T16:00:00+00:00"
+        )
+
+        # Invalid range: date_from > date_to raises ValueError
+        with pytest.raises(ValueError, match="date_from must not be after date_to"):
+            await client.get_charge_station_transactions(
+                MOCK_STATION_ID, date_from=explicit_to, date_to=explicit_from
+            )
+
+        mock_query.return_value = GetTransactionsResponse.model_validate(
+            {"getTransactions": {"hasNext": True, "items": []}}
+        )
+        page_col = await client.get_charge_station_transactions_page(
+            MOCK_STATION_ID, items_per_page=10, page=2
+        )
+        assert page_col.has_next is True
+        assert page_col.items == []
+        _, page_variables = mock_query.await_args.args
+        assert page_variables["getTransactionsFilters"]["itemsPerPage"] == 10
+        assert page_variables["getTransactionsFilters"]["page"] == 2
 
 
 async def test_get_transaction_by_id() -> None:

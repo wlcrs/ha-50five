@@ -59,6 +59,37 @@ A custom integration for Home Assistant to monitor and control your [50five](htt
 * **Last Session Cost**: Total cost of the last completed session (€).
 * **Last Session Card**: RFID card ID / contract ID used for the last session.
 
+### 📋 Recent Transactions Dashboard Card
+The integration automatically registers a custom Lovelace card (`custom:fiftyfive-transactions-card`) — no manual resource configuration is required. You can add **50five Transactions** directly from the dashboard card picker (including a visual configuration editor) or via YAML:
+
+```yaml
+type: custom:fiftyfive-transactions-card
+entity: sensor.home_charger_status
+title: Recent Charging Sessions
+limit: 5
+show_card: true
+compact: false
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `entity` | `string` *(required)* | – | Any `50five` entity belonging to the charge station you want to display. |
+| `title` | `string` | `Recent Charging Sessions` | Card header title. |
+| `limit` | `number` (`1`–`50`) | `5` | Number of transactions shown per page. |
+| `show_card` | `boolean` | `true` | Show the RFID card ID column. |
+| `compact` | `boolean` | `false` | Use compact row padding. |
+
+The card fetches transactions on demand via the `50five.get_transactions` service (rather than storing a full history in entity attributes), supports **Previous/Next** page navigation and a manual **Refresh** button, and automatically reloads whenever the configured `entity` changes state (for example, when a session finishes or the status sensor updates).
+
+#### What transactions are visible (and which ones are not)
+* **Visible:**
+  * **Completed/settled sessions on the targeted charge station** updated within the **last calendar month**, sorted newest-first by start time.
+  * **All cards and start methods used on that station** — includes sessions started via Home Assistant, the 50five app, or physical RFID cards (not just the cards you exposed as switches in Home Assistant).
+* **Not visible:**
+  * **Transactions older than 1 calendar month:** The 50five backend restricts each `getTransactions` query to a maximum 1-month date range, and the card uses the service's default last-month window (unlike the 50five mobile app, which queries up to 3 monthly windows sequentially). To inspect older sessions, call the `50five.get_transactions` service directly with `date_from` and `date_to` (spanning up to 1 month).
+  * **In-progress / active sessions:** Live telemetry for ongoing sessions comes from a separate endpoint and is shown in the **Real-Time & Active Session Sensors**; transactions appear in the card once they are completed/settled in the 50five backend (there can be a short delay right after a session stops).
+  * **Sessions at other or public charging stations:** The card queries history scoped to the targeted charge station only, not your charge card's roaming or public charging sessions elsewhere.
+
 ### ⚡ Home Charging Compensation (HCC) Sensors and Control
 * **HCC Status**: Binary sensor indicating whether Home Charging Compensation reimbursement is enabled (`On` / `Off`).
 * **HCC Tariff (Sensor)**: Active compensation reimbursement rate including VAT (€/kWh), with the raw net tariff, VAT percentage, and VAT multiplier exposed as attributes.
@@ -74,6 +105,7 @@ The integration registers custom services under the `50five` domain for automati
 |---|---|---|
 | `50five.start_charging` | Start charging on targeted station/channel with an optional card ID | `card_id` *(optional)* |
 | `50five.stop_charging` | Stop charging on targeted station/channel | – |
+| `50five.get_transactions` | Fetch recent completed transactions for targeted charge station(s) *(returns service response data)* | `limit` *(optional, 1–50, default `5`)*, `date_from` *(optional)*, `date_to` *(optional, max 1-month span; defaults to the last calendar month)*, `page` *(optional, default `1`)* |
 
 
 ### 🔍 Diagnostics & Troubleshooting

@@ -138,12 +138,43 @@ def mock_api_client(
             return_value=mock_charge_stations[0]
         )
 
-        async def _mock_get_transactions(station_id: str, days_back: int = 30):
+        async def _mock_get_transactions_page(
+            station_id: str,
+            date_from: datetime | None = None,
+            date_to: datetime | None = None,
+            items_per_page: int = 1,
+            page: int = 1,
+        ):
             for st in mock_charge_stations:
                 if st.id == station_id:
-                    return st.transactions.items if st.transactions else []
-            return []
+                    items = st.transactions.items if st.transactions else []
+                    start = (page - 1) * items_per_page
+                    end = start + items_per_page
+                    return models.TransactionCollection(
+                        items=items[start:end],
+                        has_next=end < len(items),
+                    )
+            return models.TransactionCollection(items=[], has_next=False)
 
+        async def _mock_get_transactions(
+            station_id: str,
+            date_from: datetime | None = None,
+            date_to: datetime | None = None,
+            items_per_page: int = 1,
+            page: int = 1,
+        ):
+            col = await _mock_get_transactions_page(
+                station_id,
+                date_from=date_from,
+                date_to=date_to,
+                items_per_page=items_per_page,
+                page=page,
+            )
+            return col.items or []
+
+        client.get_charge_station_transactions_page = AsyncMock(
+            side_effect=_mock_get_transactions_page
+        )
         client.get_charge_station_transactions = AsyncMock(
             side_effect=_mock_get_transactions
         )

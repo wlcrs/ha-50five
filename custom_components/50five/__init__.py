@@ -4,17 +4,18 @@
 from __future__ import annotations
 
 import logging
-import re
+from pathlib import Path
 import uuid
 
-import voluptuous as vol
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import (
+    HomeAssistant,
+    callback,
+)
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import service
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
@@ -36,6 +37,7 @@ from .coordinator import (
     active_cards_store_key,
     get_configured_card_ids,
 )
+from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,178 +51,25 @@ PLATFORMS: list[Platform] = [
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-
-def _resolve_fiftyfive_target(
-    hass: HomeAssistant,
-    entity_id: str,
-) -> tuple[FiftyFiveCoordinator, str, str] | None:
-    """Resolve entity_id to (coordinator, spot_id, channel_id)."""
-    entity_entry = er.async_get(hass).async_get(entity_id)
-    if (
-        not entity_entry
-        or not entity_entry.config_entry_id
-        or not entity_entry.unique_id
-    ):
-        return None
-
-    config_entry: FiftyFiveConfigEntry | None = hass.config_entries.async_get_entry(
-        entity_entry.config_entry_id
-    )
-    if not config_entry or not hasattr(config_entry, "runtime_data"):
-        return None
-
-    coordinator: FiftyFiveCoordinator = config_entry.runtime_data
-
-    # Spot ID from HA Device Registry (with fallback to unique_id prefix)
-    spot_id: str | None = None
-    if entity_entry.device_id:
-        dev = dr.async_get(hass).async_get(entity_entry.device_id)
-        if dev:
-            spot_id = next(
-                (ident for dom, ident in dev.identifiers if dom == DOMAIN), None
-            )
-
-    if not spot_id:
-        if coordinator.data:
-            spot_id = max(
-                (
-                    sid
-                    for sid in coordinator.data
-                    if entity_entry.unique_id.startswith(f"{sid}_")
-                ),
-                key=len,
-                default=None,
-            )
-        if not spot_id:
-            spot_id = entity_entry.unique_id.split("_", 1)[0]
-    if not spot_id:
-        return None
-
-    # Channel ID (matches ch<N>_ suffix after spot_id_ if multi-channel, else channel 1)
-    suffix = entity_entry.unique_id.removeprefix(f"{spot_id}_")
-    m = re.match(r"ch(\d+)_", suffix)
-    ch_num = int(m.group(1)) if m else 1
-    channel_id = coordinator.get_channel_id(spot_id, ch_num)
-
-    return (coordinator, spot_id, channel_id)
-
-
-def _resolve_switch_card_id(
-    hass: HomeAssistant,
-    entity_id: str,
-    spot_id: str,
-) -> str | None:
-    """Extract the card ID encoded in a per-card charging switch unique_id."""
-    entity_entry = er.async_get(hass).async_get(entity_id)
-    if (
-        not entity_entry
-        or entity_entry.domain != Platform.SWITCH
-        or not entity_entry.unique_id
-    ):
-        return None
-    suffix = entity_entry.unique_id.removeprefix(f"{spot_id}_")
-    suffix = re.sub(r"^ch\d+_", "", suffix)
-    if suffix.startswith("charging_") and len(suffix) > len("charging_"):
-        return suffix.removeprefix("charging_")
-    return None
-
-
-async def _async_extract_targets(
-    hass: HomeAssistant, call: ServiceCall
-) -> list[tuple[FiftyFiveCoordinator, str, str, str | None]]:
-    """Extract list of unique valid target tuples for a service call."""
-    entity_ids = await service.async_extract_entity_ids(call)
-
-    targets: dict[
-        tuple[int, str, str], tuple[FiftyFiveCoordinator, str, str, str | None]
-    ] = {}
-    card_ids_by_key: dict[tuple[int, str, str], set[str | None]] = {}
-    for entity_id in entity_ids:
-        target = _resolve_fiftyfive_target(hass, entity_id)
-        if target:
-            coord, spot_id, channel_id = target
-            key = (id(coord), spot_id, channel_id)
-            card_id = _resolve_switch_card_id(hass, entity_id, spot_id)
-            card_ids_by_key.setdefault(key, set()).add(card_id)
-            targets[key] = (coord, spot_id, channel_id, card_id)
-
-    result: list[tuple[FiftyFiveCoordinator, str, str, str | None]] = []
-    for key, (coord, spot_id, channel_id, _) in targets.items():
-        found_cards = card_ids_by_key[key]
-        # Only infer a switch's card when all targeted entities on this channel
-        # point to that single card switch (not when targeting a whole device).
-        inferred_card = (
-            next(iter(found_cards))
-            if len(found_cards) == 1
-            else None
-        )
-        result.append((coord, spot_id, channel_id, inferred_card))
-
-    return result
+FRONTEND_CARD_URL = "/50five/fiftyfive-transactions-card.js"
+FRONTEND_CARD_PATH = Path(__file__).parent / "frontend" / "fiftyfive-transactions-card.js"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register 50five integration services."""
+    """Register 50five integration services and frontend card."""
+    if getattr(hass, "http", None) is not None and FRONTEND_CARD_PATH.is_file():
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    FRONTEND_CARD_URL,
+                    str(FRONTEND_CARD_PATH),
+                    cache_headers=False,
+                )
+            ]
+        )
+        add_extra_js_url(hass, FRONTEND_CARD_URL)
 
-    async def async_handle_start_charging(call: ServiceCall) -> None:
-        """Start charging on targeted channels."""
-        card_id = call.data.get("card_id")
-        targets = await _async_extract_targets(hass, call)
-        if not targets:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="no_valid_targets",
-            )
-        coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
-
-        for coordinator, spot_id, channel_id, target_card_id in targets:
-            configured_cards = get_configured_card_ids(
-                coordinator.config_entry.data, coordinator.config_entry.options
-            )
-            fallback_card = configured_cards[0] if configured_cards else None
-            effective_card = card_id or target_card_id or fallback_card or None
-            await coordinator.client.start_charging(spot_id, channel_id, effective_card)
-            coordinator.set_optimistic_charging_state(
-                spot_id,
-                channel_id,
-                True,
-                card_id=effective_card,
-            )
-            coordinators_to_refresh.add(coordinator)
-
-        for coordinator in coordinators_to_refresh:
-            await coordinator.async_request_refresh()
-
-    async def async_handle_stop_charging(call: ServiceCall) -> None:
-        """Stop charging on targeted channels."""
-        targets = await _async_extract_targets(hass, call)
-        if not targets:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="no_valid_targets",
-            )
-        coordinators_to_refresh: set[FiftyFiveCoordinator] = set()
-
-        for coordinator, spot_id, channel_id, _ in targets:
-            await coordinator.client.stop_charging(spot_id, channel_id)
-            coordinator.set_optimistic_charging_state(spot_id, channel_id, False)
-            coordinators_to_refresh.add(coordinator)
-
-        for coordinator in coordinators_to_refresh:
-            await coordinator.async_request_refresh()
-
-    hass.services.async_register(
-        DOMAIN,
-        "start_charging",
-        async_handle_start_charging,
-        schema=cv.make_entity_service_schema({vol.Optional("card_id"): cv.string}),
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "stop_charging",
-        async_handle_stop_charging,
-        schema=cv.make_entity_service_schema({}),
-    )
+    async_setup_services(hass)
 
     return True
 

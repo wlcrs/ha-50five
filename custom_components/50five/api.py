@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import calendar
 import json
 import logging
 import math
@@ -48,6 +49,7 @@ from .models import (
     GetCustomerChargeStationsResponse,
     GetReimbursementTariffRangeResponse,
     GetTransactionResponse,
+    TransactionCollection,
     GetTransactionsResponse,
     HardResetResponse,
     LmsActiveTransactionResponse,
@@ -103,6 +105,32 @@ def _operation_name(document: Any) -> str | None:
     if operation is None or operation.name is None:
         return None
     return operation.name.value
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Return a timezone-aware UTC datetime."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _shift_months(dt: datetime, delta_months: int) -> datetime:
+    """Shift a datetime by ``delta_months`` calendar months, clamping the day."""
+    total_months = dt.year * 12 + (dt.month - 1) + delta_months
+    year, zero_based_month = divmod(total_months, 12)
+    month = zero_based_month + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
+def subtract_one_month(dt: datetime) -> datetime:
+    """Return ``dt`` shifted back by one calendar month."""
+    return _shift_months(dt, -1)
+
+
+def add_one_month(dt: datetime) -> datetime:
+    """Return ``dt`` shifted forward by one calendar month."""
+    return _shift_months(dt, 1)
 
 
 # GraphQL Documents parsed as AST via gql DSL
@@ -910,22 +938,43 @@ class FiftyFiveApiClient:
         )
         return response.get_charge_station_by_id
 
-    async def get_charge_station_transactions(
+    async def get_charge_station_transactions_page(
         self,
         charge_station_id: str,
-        days_back: int = 30,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         items_per_page: int = 1,
-    ) -> list[CompletedTransaction]:
-        """Retrieve completed transactions for a specific charge station."""
+        page: int = 1,
+    ) -> TransactionCollection:
+        """Retrieve a page of completed transactions for a specific charge station."""
         now = datetime.now(UTC)
-        date_from = now - timedelta(days=min(days_back, 30))
+        if date_from is not None and date_to is not None:
+            effective_from = _as_utc(date_from)
+            effective_to = _as_utc(date_to)
+        elif date_from is not None:
+            effective_from = _as_utc(date_from)
+            one_month_later = add_one_month(effective_from)
+            effective_to = (
+                min(now, one_month_later)
+                if effective_from <= now
+                else one_month_later
+            )
+        elif date_to is not None:
+            effective_to = _as_utc(date_to)
+            effective_from = subtract_one_month(effective_to)
+        else:
+            effective_to = now
+            effective_from = subtract_one_month(effective_to)
+
+        if effective_from > effective_to:
+            raise ValueError("date_from must not be after date_to")
 
         variables = {
             "getTransactionsFilters": {
-                "dateFrom": date_from.isoformat(),
-                "dateTo": now.isoformat(),
+                "dateFrom": effective_from.isoformat(),
+                "dateTo": effective_to.isoformat(),
                 "itemsPerPage": max(1, items_per_page),
-                "page": 1,
+                "page": max(1, page),
                 "chargeStation": {
                     "id": str(charge_station_id),
                 },
@@ -937,8 +986,27 @@ class FiftyFiveApiClient:
             variables,
             response_model=GetTransactionsResponse,
         )
-        collection = response.get_transactions
-        return collection.items if collection and collection.items else []
+        return response.get_transactions or TransactionCollection(
+            items=[], has_next=False
+        )
+
+    async def get_charge_station_transactions(
+        self,
+        charge_station_id: str,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        items_per_page: int = 1,
+        page: int = 1,
+    ) -> list[CompletedTransaction]:
+        """Retrieve completed transactions for a specific charge station."""
+        collection = await self.get_charge_station_transactions_page(
+            charge_station_id,
+            date_from=date_from,
+            date_to=date_to,
+            items_per_page=items_per_page,
+            page=page,
+        )
+        return collection.items if collection.items else []
 
     async def get_active_transaction(self) -> ActiveTransaction | None:
         """Retrieve active charging session telemetry as strongly typed model."""

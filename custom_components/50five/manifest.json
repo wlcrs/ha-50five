@@ -1,6 +1,10 @@
 {
   "domain": "50five",
   "name": "50five",
+  "after_dependencies": [
+    "http",
+    "frontend"
+  ],
   "codeowners": [
     "@wlcrs"
   ],

@@ -1,4 +1,4 @@
-"""Tests for the 50five integration initialization, lifecycle, and services."""
+"""Tests for the 50five integration initialization and lifecycle."""
 
 import importlib
 from unittest.mock import AsyncMock, patch
@@ -6,9 +6,7 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 const = importlib.import_module("custom_components.50five.const")
@@ -23,7 +21,6 @@ CONF_TOKEN_EXPIRES_AT = const.CONF_TOKEN_EXPIRES_AT
 DOMAIN = const.DOMAIN
 FiftyFiveCoordinator = coordinator_mod.FiftyFiveCoordinator
 async_setup = init_mod.async_setup
-_resolve_fiftyfive_target = init_mod._resolve_fiftyfive_target
 
 from .const import (
     MOCK_CARD_ID,
@@ -35,9 +32,16 @@ from .const import (
 
 async def test_async_setup(hass: HomeAssistant) -> None:
     """Test async_setup registers services."""
+    from homeassistant.core import SupportsResponse
+
     assert await async_setup(hass, {}) is True
     assert hass.services.has_service(DOMAIN, "start_charging")
     assert hass.services.has_service(DOMAIN, "stop_charging")
+    assert hass.services.has_service(DOMAIN, "get_transactions")
+    assert (
+        hass.services.supports_response(DOMAIN, "get_transactions")
+        is SupportsResponse.ONLY
+    )
 
 
 async def test_setup_and_unload_entry(
@@ -121,243 +125,6 @@ async def test_token_refreshed_callback(
     assert mock_config_entry.data[CONF_ACCESS_TOKEN] == "new_token_123"
     assert mock_config_entry.data[CONF_TOKEN_EXPIRES_AT] == "2030-01-01T00:00:00Z"
     assert mock_config_entry.data[CONF_CUSTOMER_ID] == "cust_new_456"
-
-
-async def test_services_start_stop_charging(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test 50five.start_charging and 50five.stop_charging custom services."""
-    await async_setup(hass, {})
-    mock_config_entry.add_to_hass(hass)
-
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    # The charging switch should have been created
-    entity_id = "switch.home_charger_single_charge_with_card_nl_50f_123456_7"
-    state = hass.states.get(entity_id)
-    assert state is not None
-
-    # Call start_charging service with specific card_id
-    await hass.services.async_call(
-        DOMAIN,
-        "start_charging",
-        {"entity_id": entity_id, "card_id": "CUSTOM-CARD-99"},
-        blocking=True,
-    )
-    mock_api_client.start_charging.assert_called_with(
-        MOCK_STATION_ID, "ch_999_1", "CUSTOM-CARD-99"
-    )
-
-    # Call stop_charging service
-    await hass.services.async_call(
-        DOMAIN,
-        "stop_charging",
-        {"entity_id": entity_id},
-        blocking=True,
-    )
-    mock_api_client.stop_charging.assert_called_with(MOCK_STATION_ID, "ch_999_1")
-
-
-async def test_services_target_resolution_edge_cases(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test service call handling with invalid or missing targets."""
-    await async_setup(hass, {})
-    mock_config_entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    # 1. Non-existent entity
-    target = _resolve_fiftyfive_target(hass, "switch.non_existent")
-    assert target is None
-
-    # 2. Entity from another config entry / registry entry without config_entry_id
-    entity_registry = er.async_get(hass)
-    orphan_entry = entity_registry.async_get_or_create(
-        "switch", DOMAIN, "orphan_unique_id"
-    )
-    target = _resolve_fiftyfive_target(hass, orphan_entry.entity_id)
-    assert target is None
-
-    # 3. Entry without runtime_data
-    no_runtime_entry = MockConfigEntry(domain=DOMAIN, entry_id="no_runtime", version=2)
-    no_runtime_entry.add_to_hass(hass)
-    entity_no_runtime = entity_registry.async_get_or_create(
-        "switch",
-        DOMAIN,
-        "unique_no_runtime",
-        config_entry=no_runtime_entry,
-    )
-    assert _resolve_fiftyfive_target(hass, entity_no_runtime.entity_id) is None
-
-    # 4. Empty unique_id / spot_id resolve failure
-    entity_empty_id = entity_registry.async_get_or_create(
-        "switch",
-        DOMAIN,
-        "",
-        config_entry=mock_config_entry,
-    )
-    assert _resolve_fiftyfive_target(hass, entity_empty_id.entity_id) is None
-
-
-async def test_services_with_device_id_target(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test 50five.start_charging and 50five.stop_charging targeting a device."""
-
-    await async_setup(hass, {})
-    mock_config_entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get("sensor.home_charger_single_status")
-    assert entity is not None
-    assert entity.device_id is not None
-    device_id = entity.device_id
-
-    # Call start_charging with device_id and default card fallback
-    mock_api_client.start_charging.reset_mock()
-    await hass.services.async_call(
-        DOMAIN,
-        "start_charging",
-        {"device_id": [device_id]},
-        blocking=True,
-    )
-    mock_api_client.start_charging.assert_called_once_with(
-        MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
-    )
-
-    # Call stop_charging with device_id
-    mock_api_client.stop_charging.reset_mock()
-    await hass.services.async_call(
-        DOMAIN,
-        "stop_charging",
-        {"device_id": [device_id]},
-        blocking=True,
-    )
-    mock_api_client.stop_charging.assert_called_once_with(MOCK_STATION_ID, "ch_999_1")
-
-
-async def test_services_with_sensor_entity_target(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test 50five.start_charging targeting a sensor entity resolves channel ID properly."""
-    await async_setup(hass, {})
-    mock_config_entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    # Target the station status sensor
-    sensor_id = "sensor.home_charger_single_status"
-    assert hass.states.get(sensor_id) is not None
-
-    mock_api_client.start_charging.reset_mock()
-    await hass.services.async_call(
-        DOMAIN,
-        "start_charging",
-        {"entity_id": sensor_id},
-        blocking=True,
-    )
-    mock_api_client.start_charging.assert_called_once_with(
-        MOCK_STATION_ID, "ch_999_1", MOCK_CARD_ID
-    )
-
-
-async def test_services_raise_validation_error_when_no_valid_targets(
-    hass: HomeAssistant,
-) -> None:
-    """Test services raise ServiceValidationError when no valid targets match."""
-    await async_setup(hass, {})
-
-    with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(
-            DOMAIN,
-            "start_charging",
-            {"entity_id": "switch.non_existent"},
-            blocking=True,
-        )
-
-    with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(
-            DOMAIN,
-            "stop_charging",
-            {"entity_id": "switch.non_existent"},
-            blocking=True,
-        )
-
-
-async def test_service_start_charging_sets_coordinator_optimistic_state(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test 50five.start_charging sets optimistic state for the matching card switch."""
-    await async_setup(hass, {})
-    mock_config_entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    card1_entity = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_123456_7"
-    card2_entity = "switch.office_charger_dual_ch_2_charge_with_card_nl_50f_999999_9"
-    assert hass.states.get(card1_entity).state == "off"
-    assert hass.states.get(card2_entity).state == "off"
-
-    # Calling start_charging on card1_entity with explicit card_id for card 2 turns on card 2 only
-    await hass.services.async_call(
-        DOMAIN,
-        "start_charging",
-        {"entity_id": card1_entity, "card_id": "NL-50F-999999-9"},
-        blocking=True,
-    )
-    assert hass.states.get(card2_entity).state == "on"
-    assert hass.states.get(card1_entity).state == "off"
-
-    # Calling start_charging targeting card1_entity without card_id uses card 1
-    await hass.services.async_call(
-        DOMAIN,
-        "start_charging",
-        {"entity_id": card1_entity},
-        blocking=True,
-    )
-    assert hass.states.get(card1_entity).state == "on"
-    assert hass.states.get(card2_entity).state == "off"
-
-
-async def test_resolve_target_with_underscore_in_spot_id(
-    hass: HomeAssistant,
-    mock_config_entry: MockConfigEntry,
-    mock_api_client: AsyncMock,
-) -> None:
-    """Test _resolve_fiftyfive_target handles spot_ids containing _ch<N>_."""
-    mock_config_entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
-    await hass.async_block_till_done()
-
-    coordinator = mock_config_entry.runtime_data
-    spot_id = "station_ch2_test"
-    coordinator.data[spot_id] = coordinator.data[MOCK_STATION_ID]
-
-    entity_registry = er.async_get(hass)
-    entry = entity_registry.async_get_or_create(
-        "switch",
-        DOMAIN,
-        f"{spot_id}_charging",
-        config_entry=mock_config_entry,
-    )
-    resolved = _resolve_fiftyfive_target(hass, entry.entity_id)
-    assert resolved is not None
-    _, resolved_spot_id, _ = resolved
-    assert resolved_spot_id == spot_id
 
 
 async def test_setup_entry_removes_legacy_hcc_enabled_sensor(
@@ -480,3 +247,21 @@ async def test_remove_entry_deletes_active_cards_store(
         coordinator_mod.active_cards_store_key(mock_config_entry.entry_id)
         in removed_keys
     )
+
+
+async def test_async_setup_registers_frontend_card(hass: HomeAssistant) -> None:
+    """Test async_setup registers the static JS card when hass.http is present."""
+    mock_http = AsyncMock()
+    hass.http = mock_http  # type: ignore[assignment]
+    try:
+        with patch.object(init_mod, "add_extra_js_url") as mock_add_js:
+            assert await async_setup(hass, {}) is True
+    finally:
+        hass.http = None  # type: ignore[assignment]
+
+    mock_http.async_register_static_paths.assert_awaited_once()
+    static_configs = mock_http.async_register_static_paths.await_args.args[0]
+    assert len(static_configs) == 1
+    assert static_configs[0].url_path == init_mod.FRONTEND_CARD_URL
+    assert static_configs[0].path.endswith("fiftyfive-transactions-card.js")
+    mock_add_js.assert_called_once_with(hass, init_mod.FRONTEND_CARD_URL)

@@ -20,3 +20,42 @@ stop_charging:
     entity:
       domain: switch
       integration: 50five
+
+get_transactions:
+  name: Get transactions
+  description: Fetch recent completed charging transactions for a charge station
+  target:
+    entity:
+      integration: 50five
+  fields:
+    limit:
+      name: Limit
+      description: Maximum number of transactions to return (1-50).
+      required: false
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box
+    date_from:
+      name: Date from
+      description: Start of the date range to search (inclusive). Must not be more than 1 month before date_to; defaults to 1 month before date_to.
+      required: false
+      selector:
+        datetime: {}
+    date_to:
+      name: Date to
+      description: End of the date range to search (inclusive). Defaults to the current time (or 1 month after date_from if date_from is more than 1 month ago).
+      required: false
+      selector:
+        datetime: {}
+    page:
+      name: Page
+      description: 1-based page number to fetch.
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          mode: box
