@@ -119,6 +119,8 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         self.reimbursement_tariff_range: TariffRange | None = None
         self._tariff_range_fetched = False
         self._charge_cards_fetched = False
+        self._cached_active_tx_id: str | None = None
+        self._cached_active_tx_details: CompletedTransaction | None = None
         self.charge_cards: list[ChargeCard] = []
         self._optimistic_charging: dict[tuple[str, str], tuple[bool, str | None, float]] = {}
         self._last_used_card: dict[tuple[str, str], str] = {}
@@ -458,18 +460,28 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
             except FiftyFiveError as tx_err:
                 _LOGGER.debug("Could not fetch active transaction: %s", tx_err)
 
-            # Query full LMS transaction details (including cardSnapshot) if an
-            # active transactionId was returned, degrading gracefully on failure.
+            # Query full LMS transaction details (including cardSnapshot) once per
+            # active transactionId, degrading gracefully on failure.
             active_transaction_details: CompletedTransaction | None = None
-            if active_transaction and active_transaction.transaction_id:
+            active_tx_id = (
+                active_transaction.transaction_id if active_transaction else None
+            )
+            if not active_tx_id:
+                self._cached_active_tx_id = None
+                self._cached_active_tx_details = None
+            elif active_tx_id == self._cached_active_tx_id:
+                active_transaction_details = self._cached_active_tx_details
+            else:
                 try:
                     active_transaction_details = await self.client.get_transaction(
-                        active_transaction.transaction_id
+                        active_tx_id
                     )
+                    self._cached_active_tx_id = active_tx_id
+                    self._cached_active_tx_details = active_transaction_details
                 except FiftyFiveError as tx_detail_err:
                     _LOGGER.debug(
                         "Could not fetch details for active transaction %s: %s",
-                        active_transaction.transaction_id,
+                        active_tx_id,
                         tx_detail_err,
                     )
 

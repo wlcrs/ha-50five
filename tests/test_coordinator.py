@@ -207,6 +207,26 @@ async def test_coordinator_fetches_charge_cards_and_active_transaction_details(
     assert data[MOCK_STATION_ID].active_transaction_details == active_details
     assert MOCK_CARD_ID in data[MOCK_STATION_ID].get_backend_active_card_ids(1)
 
+    # Repeating poll with same transaction_id reuses cached details without another API call
+    data2 = await coordinator._async_update_data()
+    assert mock_api_client.get_transaction.await_count == 1
+    assert data2[MOCK_STATION_ID].active_transaction_details == active_details
+
+    # New transaction_id triggers a fresh get_transaction lookup
+    mock_api_client.get_active_transaction.return_value = (
+        mock_api_client.get_active_transaction.return_value.model_copy(
+            update={"transaction_id": "tx_active_2"}
+        )
+    )
+    await coordinator._async_update_data()
+    assert mock_api_client.get_transaction.await_count == 2
+    mock_api_client.get_transaction.assert_awaited_with("tx_active_2")
+
+    # Ending active transaction clears cached details
+    mock_api_client.get_active_transaction.return_value = None
+    data3 = await coordinator._async_update_data()
+    assert data3[MOCK_STATION_ID].active_transaction_details is None
+
 
 async def test_coordinator_degrades_gracefully_when_cards_or_tx_details_fail(
     hass: HomeAssistant,
