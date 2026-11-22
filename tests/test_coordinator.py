@@ -290,3 +290,69 @@ async def test_coordinator_skips_active_transaction_when_all_stations_idle(
     data2 = await coordinator._async_update_data()
     mock_api_client.get_active_transaction.assert_awaited_once()
     assert data2[MOCK_STATION_ID].active_transaction is not None
+
+
+async def test_coordinator_throttles_completed_transactions_when_idle(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api_client: AsyncMock,
+    mock_charge_stations: list[ChargeStation],
+) -> None:
+    """Test getTransactions is throttled when idle, refreshed post-session, and hourly."""
+    from unittest.mock import patch
+
+    station_base = mock_charge_stations[0].model_copy(update={"transactions": None})
+    initial_txs = mock_charge_stations[0].transactions.items
+    new_tx = initial_txs[0].model_copy(update={"id": "tx_last_2", "total_energy": 15.0})
+
+    mock_api_client.get_customer_charge_stations.return_value = [station_base]
+    mock_api_client.get_charge_station_transactions.side_effect = None
+    mock_api_client.get_charge_station_transactions.return_value = initial_txs
+
+    coordinator = FiftyFiveCoordinator(hass, mock_config_entry, mock_api_client)
+    now = [1000.0]
+
+    with patch.object(coordinator_mod.time, "monotonic", side_effect=lambda: now[0]):
+        # 1. Startup poll fetches transactions once
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 1
+        assert coordinator.data[MOCK_STATION_ID].station.last_transaction.id == "tx_last_1"
+
+        # 2. Idle poll 60s later skips getTransactions and reuses cached last_transaction
+        now[0] = 1060.0
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 1
+        assert coordinator.data[MOCK_STATION_ID].station.last_transaction.id == "tx_last_1"
+
+        # 3. Station starts charging -> still no completed-history fetch
+        charging_station = station_base.model_copy(
+            update={
+                "channels": [
+                    station_base.channels[0].model_copy(
+                        update={"global_status": models.ChannelGlobalStatus.CHARGING}
+                    )
+                ]
+            }
+        )
+        mock_api_client.get_customer_charge_stations.return_value = [charging_station]
+        now[0] = 1120.0
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 1
+
+        # 4. Charging ends (Charging -> Available) -> triggers post-session fetch
+        mock_api_client.get_customer_charge_stations.return_value = [station_base]
+        mock_api_client.get_charge_station_transactions.return_value = [new_tx]
+        now[0] = 1180.0
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 2
+        assert coordinator.data[MOCK_STATION_ID].station.last_transaction.id == "tx_last_2"
+
+        # 5. New tx ID was caught -> post-session window clears early, next idle poll skips
+        now[0] = 1240.0
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 2
+
+        # 6. Hourly fallback triggers after 3600s
+        now[0] = 1180.0 + 3600.0
+        coordinator.data = await coordinator._async_update_data()
+        assert mock_api_client.get_charge_station_transactions.await_count == 3

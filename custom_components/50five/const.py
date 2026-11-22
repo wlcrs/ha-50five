@@ -20,6 +20,12 @@ ACTION_SETTLE_DELAY_SEC = (
 CHARGING_OPTIMISTIC_GRACE_SECONDS = (
     240  # Seconds to hold optimistic charging state while backend catches up
 )
+TRANSACTIONS_REFRESH_INTERVAL_SECONDS = (
+    3600  # Periodic fallback interval for completed transaction history when idle
+)
+TRANSACTIONS_POST_SESSION_WINDOW_SECONDS = (
+    900  # Window after charging ends to poll for newly settled transaction history
+)
 
 # Attribute names
 ATTR_CHARGE_STATION_ID = "charge_station_id"

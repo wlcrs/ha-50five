@@ -23,6 +23,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     HCC_TARIFF_HIDDEN_PROVIDER_CATEGORIES,
+    TRANSACTIONS_POST_SESSION_WINDOW_SECONDS,
+    TRANSACTIONS_REFRESH_INTERVAL_SECONDS,
 )
 from .exceptions import FiftyFiveAuthError, FiftyFiveError
 from .models import (
@@ -122,6 +124,9 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
         self._charge_cards_fetched = False
         self._cached_active_tx_id: str | None = None
         self._cached_active_tx_details: CompletedTransaction | None = None
+        self._last_tx_fetch: dict[str, float] = {}
+        self._tx_post_session_until: dict[str, float] = {}
+        self._last_station_charging: dict[str, bool] = {}
         self.charge_cards: list[ChargeCard] = []
         self._optimistic_charging: dict[tuple[str, str], tuple[bool, str | None, float]] = {}
         self._last_used_card: dict[tuple[str, str], str] = {}
@@ -408,11 +413,62 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
     async def _async_fetch_station_transactions(
         self, station: ChargeStation
     ) -> ChargeStation:
-        """Fetch recent completed transactions for a station if not already attached."""
+        """Fetch recent completed transactions only on startup, post-session, or fallback."""
         if not station.id or (station.transactions and station.transactions.items):
             return station
+
+        prev_station_data = self.data.get(station.id) if self.data else None
+        prev_transactions = (
+            prev_station_data.station.transactions if prev_station_data else None
+        )
+        prev_latest_tx_id = (
+            prev_transactions.items[0].id
+            if prev_transactions and prev_transactions.items
+            else None
+        )
+
+        is_charging = any(
+            ch.status
+            in (
+                GlobalStatus.CHARGING,
+                GlobalStatus.OCCUPIED,
+                GlobalStatus.PREPARING,
+            )
+            for ch in (station.channels or [])
+        )
+        was_charging = self._last_station_charging.get(station.id, False)
+        self._last_station_charging[station.id] = is_charging
+
+        now = time.monotonic()
+        if was_charging and not is_charging:
+            self._tx_post_session_until[station.id] = (
+                now + TRANSACTIONS_POST_SESSION_WINDOW_SECONDS
+            )
+
+        has_fetched = station.id in self._last_tx_fetch
+        in_post_session_window = now < self._tx_post_session_until.get(station.id, 0.0)
+        fallback_due = (
+            has_fetched
+            and (now - self._last_tx_fetch[station.id])
+            >= TRANSACTIONS_REFRESH_INTERVAL_SECONDS
+        )
+        should_fetch = (not has_fetched) or in_post_session_window or fallback_due
+
+        if not should_fetch:
+            if prev_transactions is not None:
+                return station.model_copy(update={"transactions": prev_transactions})
+            return station
+
         try:
             txs = await self.client.get_charge_station_transactions(station.id)
+            self._last_tx_fetch[station.id] = now
+            new_latest_tx_id = txs[0].id if txs else None
+            if (
+                in_post_session_window
+                and new_latest_tx_id is not None
+                and new_latest_tx_id != prev_latest_tx_id
+            ):
+                self._tx_post_session_until.pop(station.id, None)
             if txs:
                 return station.model_copy(
                     update={"transactions": TransactionCollection(items=txs)}
@@ -429,6 +485,9 @@ class FiftyFiveCoordinator(DataUpdateCoordinator[dict[str, StationData]]):
                 station.id,
                 tx_err,
             )
+
+        if prev_transactions is not None:
+            return station.model_copy(update={"transactions": prev_transactions})
         return station
 
     async def _async_update_data(self) -> dict[str, StationData]:
