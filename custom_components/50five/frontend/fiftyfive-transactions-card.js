@@ -9,6 +9,168 @@
 const CARD_TAG = "fiftyfive-transactions-card";
 const DEFAULT_LIMIT = 5;
 
+const TRANSLATIONS = {
+  en: {
+    default_title: "Recent Charging Sessions",
+    loading: "Loading transactions…",
+    empty: "No recent transactions found",
+    error_default: "Failed to load transactions.",
+    col_start: "Start",
+    col_energy: "Energy",
+    col_duration: "Duration",
+    col_cost: "Cost",
+    col_card: "Card",
+    refresh: "Refresh transactions",
+    prev_page: "Previous page",
+    next_page: "Next page",
+    page: "Page",
+    cfg_device: "Charge station",
+    cfg_title: "Card title",
+    cfg_limit: "Transactions to show",
+    cfg_show_card: "Show RFID card column",
+    cfg_compact: "Compact rows",
+  },
+  nl: {
+    default_title: "Recente laadsessies",
+    loading: "Transacties laden…",
+    empty: "Geen recente transacties gevonden",
+    error_default: "Laden van transacties mislukt.",
+    col_start: "Start",
+    col_energy: "Energie",
+    col_duration: "Duur",
+    col_cost: "Kosten",
+    col_card: "Pas",
+    refresh: "Transacties vernieuwen",
+    prev_page: "Vorige pagina",
+    next_page: "Volgende pagina",
+    page: "Pagina",
+    cfg_device: "Laadpaal",
+    cfg_title: "Kaarttitel",
+    cfg_limit: "Aantal transacties",
+    cfg_show_card: "Laadpas-kolom tonen",
+    cfg_compact: "Compacte rijen",
+  },
+  fr: {
+    default_title: "Sessions de charge récentes",
+    loading: "Chargement des transactions…",
+    empty: "Aucune transaction récente",
+    error_default: "Échec du chargement des transactions.",
+    col_start: "Début",
+    col_energy: "Énergie",
+    col_duration: "Durée",
+    col_cost: "Coût",
+    col_card: "Badge",
+    refresh: "Actualiser les transactions",
+    prev_page: "Page précédente",
+    next_page: "Page suivante",
+    page: "Page",
+    cfg_device: "Borne de recharge",
+    cfg_title: "Titre de la carte",
+    cfg_limit: "Transactions à afficher",
+    cfg_show_card: "Afficher la colonne badge",
+    cfg_compact: "Lignes compactes",
+  },
+  de: {
+    default_title: "Letzte Ladevorgänge",
+    loading: "Transaktionen werden geladen…",
+    empty: "Keine aktuellen Transaktionen gefunden",
+    error_default: "Transaktionen konnten nicht geladen werden.",
+    col_start: "Start",
+    col_energy: "Energie",
+    col_duration: "Dauer",
+    col_cost: "Kosten",
+    col_card: "Karte",
+    refresh: "Transaktionen aktualisieren",
+    prev_page: "Vorherige Seite",
+    next_page: "Nächste Seite",
+    page: "Seite",
+    cfg_device: "Ladestation",
+    cfg_title: "Kartentitel",
+    cfg_limit: "Angezeigte Transaktionen",
+    cfg_show_card: "RFID-Kartenspalte anzeigen",
+    cfg_compact: "Kompakte Zeilen",
+  },
+  es: {
+    default_title: "Sesiones de carga recientes",
+    loading: "Cargando transacciones…",
+    empty: "No se encontraron transacciones recientes",
+    error_default: "Error al cargar las transacciones.",
+    col_start: "Inicio",
+    col_energy: "Energía",
+    col_duration: "Duración",
+    col_cost: "Coste",
+    col_card: "Tarjeta",
+    refresh: "Actualizar transacciones",
+    prev_page: "Página anterior",
+    next_page: "Página siguiente",
+    page: "Página",
+    cfg_device: "Estación de carga",
+    cfg_title: "Título de la tarjeta",
+    cfg_limit: "Transacciones a mostrar",
+    cfg_show_card: "Mostrar columna de tarjeta",
+    cfg_compact: "Filas compactas",
+  },
+  it: {
+    default_title: "Sessioni di ricarica recenti",
+    loading: "Caricamento transazioni…",
+    empty: "Nessuna transazione recente trovata",
+    error_default: "Impossibile caricare le transazioni.",
+    col_start: "Inizio",
+    col_energy: "Energia",
+    col_duration: "Durata",
+    col_cost: "Costo",
+    col_card: "Tessera",
+    refresh: "Aggiorna transazioni",
+    prev_page: "Pagina precedente",
+    next_page: "Pagina successiva",
+    page: "Pagina",
+    cfg_device: "Stazione di ricarica",
+    cfg_title: "Titolo scheda",
+    cfg_limit: "Transazioni da mostrare",
+    cfg_show_card: "Mostra colonna tessera",
+    cfg_compact: "Righe compatte",
+  },
+  pl: {
+    default_title: "Ostatnie sesje ładowania",
+    loading: "Ładowanie transakcji…",
+    empty: "Brak ostatnich transakcji",
+    error_default: "Nie udało się załadować transakcji.",
+    col_start: "Start",
+    col_energy: "Energia",
+    col_duration: "Czas",
+    col_cost: "Koszt",
+    col_card: "Karta",
+    refresh: "Odśwież transakcje",
+    prev_page: "Poprzednia strona",
+    next_page: "Następna strona",
+    page: "Strona",
+    cfg_device: "Stacja ładowania",
+    cfg_title: "Tytuł karty",
+    cfg_limit: "Liczba transakcji",
+    cfg_show_card: "Pokaż kolumnę karty",
+    cfg_compact: "Kompaktowe wiersze",
+  },
+};
+
+function getLanguage(hass) {
+  const raw =
+    hass?.locale?.language ||
+    document.querySelector("home-assistant")?.hass?.locale?.language ||
+    navigator.language ||
+    "en";
+  const norm = raw.toLowerCase();
+  if (TRANSLATIONS[norm]) {
+    return norm;
+  }
+  const base = norm.split("-")[0];
+  return TRANSLATIONS[base] ? base : "en";
+}
+
+function localize(hass, key) {
+  const lang = getLanguage(hass);
+  return TRANSLATIONS[lang]?.[key] || TRANSLATIONS.en[key] || key;
+}
+
 class FiftyFiveTransactionsCard extends HTMLElement {
   constructor() {
     super();
@@ -26,19 +188,17 @@ class FiftyFiveTransactionsCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    let defaultEntity = "";
-    if (hass && hass.states) {
-      const candidates = Object.keys(hass.states).filter(
-        (eid) =>
-          eid.startsWith("sensor.") &&
-          (eid.includes("last_session") || eid.includes("50five"))
+    let defaultDeviceId = "";
+    if (hass && hass.entities) {
+      const entry = Object.values(hass.entities).find(
+        (ent) => ent.platform === "50five" && ent.device_id
       );
-      if (candidates.length > 0) {
-        defaultEntity = candidates[0];
+      if (entry) {
+        defaultDeviceId = entry.device_id;
       }
     }
     return {
-      entity: defaultEntity,
+      device_id: defaultDeviceId,
       title: "Recent Charging Sessions",
       limit: DEFAULT_LIMIT,
       show_card: true,
@@ -50,10 +210,10 @@ class FiftyFiveTransactionsCard extends HTMLElement {
     return {
       schema: [
         {
-          name: "entity",
+          name: "device_id",
           required: true,
           selector: {
-            entity: {
+            device: {
               integration: "50five",
             },
           },
@@ -82,23 +242,24 @@ class FiftyFiveTransactionsCard extends HTMLElement {
         },
       ],
       computeLabel: (schema) => {
-        const labels = {
-          entity: "Charge station entity",
-          title: "Card title",
-          limit: "Transactions to show",
-          show_card: "Show RFID card column",
-          compact: "Compact rows",
+        const labelKeys = {
+          device_id: "cfg_device",
+          title: "cfg_title",
+          limit: "cfg_limit",
+          show_card: "cfg_show_card",
+          compact: "cfg_compact",
         };
-        return labels[schema.name] || schema.name;
+        const key = labelKeys[schema.name];
+        return key ? localize(null, key) : schema.name;
       },
     };
   }
 
   setConfig(config) {
-    if (!config || !config.entity) {
-      throw new Error("Please define a 50five 'entity' in card configuration.");
+    if (!config || !config.device_id) {
+      throw new Error("Please select a 50five charge station in card configuration.");
     }
-    const prevEntity = this._config?.entity;
+    const prevDeviceId = this._config?.device_id;
     const prevLimit = this._config?.limit;
 
     this._config = {
@@ -109,10 +270,7 @@ class FiftyFiveTransactionsCard extends HTMLElement {
       ...config,
     };
 
-    if (
-      prevEntity !== this._config.entity ||
-      prevLimit !== this._config.limit
-    ) {
+    if (prevDeviceId !== this._config.device_id || prevLimit !== this._config.limit) {
       this._page = 1;
       this._hasNext = false;
       this._hasFetched = false;
@@ -125,14 +283,31 @@ class FiftyFiveTransactionsCard extends HTMLElement {
     }
   }
 
+  _getWatchEntityId(hass) {
+    const deviceId = this._config?.device_id;
+    if (!deviceId || !hass?.entities) {
+      return null;
+    }
+    const deviceEntities = Object.values(hass.entities).filter(
+      (ent) => ent.platform === "50five" && ent.device_id === deviceId
+    );
+    const preferred =
+      deviceEntities.find(
+        (ent) => hass.states?.[ent.entity_id]?.attributes?.device_class === "timestamp"
+      ) ||
+      deviceEntities.find((ent) => ent.entity_id.startsWith("sensor.")) ||
+      deviceEntities[0];
+    return preferred ? preferred.entity_id : null;
+  }
+
   set hass(hass) {
     this._hass = hass;
-    const entityId = this._config?.entity;
-    if (!entityId || !hass) {
+    if (!this._config?.device_id || !hass) {
       return;
     }
 
-    const stateObj = hass.states?.[entityId];
+    const watchEntityId = this._getWatchEntityId(hass);
+    const stateObj = watchEntityId ? hass.states?.[watchEntityId] : undefined;
     const currentState = stateObj ? `${stateObj.state}|${stateObj.last_updated}` : undefined;
 
     if (!this._hasFetched) {
@@ -153,7 +328,7 @@ class FiftyFiveTransactionsCard extends HTMLElement {
   }
 
   async _fetchTransactions() {
-    if (!this._hass || !this._config?.entity) {
+    if (!this._hass || !this._config?.device_id) {
       return;
     }
     if (this._fetchInFlight) {
@@ -171,7 +346,7 @@ class FiftyFiveTransactionsCard extends HTMLElement {
           domain: "50five",
           service: "get_transactions",
           target: {
-            entity_id: this._config.entity,
+            device_id: this._config.device_id,
           },
           service_data: {
             limit: Number(this._config.limit) || DEFAULT_LIMIT,
@@ -272,7 +447,7 @@ class FiftyFiveTransactionsCard extends HTMLElement {
       return;
     }
 
-    const title = this._config?.title ?? "Recent Charging Sessions";
+    const title = this._config?.title || localize(this._hass, "default_title");
     const showCard = this._config?.show_card !== false;
     const compact = Boolean(this._config?.compact);
 
@@ -287,14 +462,14 @@ class FiftyFiveTransactionsCard extends HTMLElement {
       bodyHtml = `
         <div class="state-box">
           <ha-circular-progress indeterminate size="small"></ha-circular-progress>
-          <span>Loading transactions…</span>
+          <span>${this._escapeHtml(localize(this._hass, "loading"))}</span>
         </div>
       `;
     } else if (this._transactions.length === 0) {
       bodyHtml = `
         <div class="state-box empty">
           <ha-icon icon="mdi:ev-station"></ha-icon>
-          <span>No recent transactions found</span>
+          <span>${this._escapeHtml(localize(this._hass, "empty"))}</span>
         </div>
       `;
     } else {
@@ -322,11 +497,11 @@ class FiftyFiveTransactionsCard extends HTMLElement {
           <table class="${compact ? "compact" : ""}">
             <thead>
               <tr>
-                <th>Start</th>
-                <th class="num-col">Energy</th>
-                <th class="num-col">Duration</th>
-                <th class="num-col">Cost</th>
-                ${showCard ? "<th>Card</th>" : ""}
+                <th>${this._escapeHtml(localize(this._hass, "col_start"))}</th>
+                <th class="num-col">${this._escapeHtml(localize(this._hass, "col_energy"))}</th>
+                <th class="num-col">${this._escapeHtml(localize(this._hass, "col_duration"))}</th>
+                <th class="num-col">${this._escapeHtml(localize(this._hass, "col_cost"))}</th>
+                ${showCard ? `<th>${this._escapeHtml(localize(this._hass, "col_card"))}</th>` : ""}
               </tr>
             </thead>
             <tbody>
@@ -338,22 +513,25 @@ class FiftyFiveTransactionsCard extends HTMLElement {
     }
 
     const showPagination = !this._error && (this._page > 1 || this._hasNext);
+    const prevLabel = this._escapeHtml(localize(this._hass, "prev_page"));
+    const nextLabel = this._escapeHtml(localize(this._hass, "next_page"));
+    const pageWord = this._escapeHtml(localize(this._hass, "page"));
     const paginationHtml = showPagination
       ? `
         <div class="pagination">
           <ha-icon-button
             id="prev-page-btn"
-            title="Previous page"
-            aria-label="Previous page"
+            title="${prevLabel}"
+            aria-label="${prevLabel}"
             ${this._page <= 1 || this._loading ? "disabled" : ""}
           >
             <ha-icon icon="mdi:chevron-left"></ha-icon>
           </ha-icon-button>
-          <span class="page-label">Page ${this._page}</span>
+          <span class="page-label">${pageWord} ${this._page}</span>
           <ha-icon-button
             id="next-page-btn"
-            title="Next page"
-            aria-label="Next page"
+            title="${nextLabel}"
+            aria-label="${nextLabel}"
             ${!this._hasNext || this._loading ? "disabled" : ""}
           >
             <ha-icon icon="mdi:chevron-right"></ha-icon>
@@ -496,8 +674,8 @@ class FiftyFiveTransactionsCard extends HTMLElement {
           <div class="header-actions">
             <ha-icon-button
               class="refresh-btn ${this._loading ? "spinning" : ""}"
-              title="Refresh transactions"
-              aria-label="Refresh transactions"
+              title="${this._escapeHtml(localize(this._hass, "refresh"))}"
+              aria-label="${this._escapeHtml(localize(this._hass, "refresh"))}"
             >
               <ha-icon icon="mdi:refresh"></ha-icon>
             </ha-icon-button>

@@ -25,7 +25,7 @@ get_transactions:
   name: Get transactions
   description: Fetch recent completed charging transactions for a charge station
   target:
-    entity:
+    device:
       integration: 50five
   fields:
     limit:
