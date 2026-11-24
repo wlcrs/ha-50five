@@ -258,21 +258,24 @@ async def test_resolve_target_with_underscore_in_spot_id(
     assert resolved_spot_id == spot_id
 
 
-async def _setup_with_target_entity(
+async def _setup_with_target_device(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,
 ) -> str:
-    """Set up integration and return a target entity ID."""
+    """Set up integration and return a target device ID."""
     mock_config_entry.add_to_hass(hass)
     assert await async_setup(hass, {}) is True
     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
     ent_reg = er.async_get(hass)
-    return next(
-        e.entity_id
+    device_id = next(
+        e.device_id
         for e in er.async_entries_for_config_entry(ent_reg, mock_config_entry.entry_id)
+        if e.device_id
     )
+    assert device_id is not None
+    return device_id
 
 
 async def test_get_transactions_service(
@@ -281,7 +284,7 @@ async def test_get_transactions_service(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test get_transactions service passes normalized date_from/date_to and serializes items."""
-    target_entity = await _setup_with_target_entity(hass, mock_config_entry)
+    device_id = await _setup_with_target_device(hass, mock_config_entry)
     mock_api_client.get_charge_station_transactions_page.reset_mock()
 
     date_from = "2026-10-20T14:35:20+00:00"
@@ -291,12 +294,12 @@ async def test_get_transactions_service(
         DOMAIN,
         "get_transactions",
         {
+            "device_id": device_id,
             "limit": 3,
             "date_from": date_from,
             "date_to": date_to,
             "page": 1,
         },
-        target={"entity_id": target_entity},
         blocking=True,
         return_response=True,
     )
@@ -325,14 +328,13 @@ async def test_get_transactions_service_default_dates(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test get_transactions forwards None dates when omitted."""
-    target_entity = await _setup_with_target_entity(hass, mock_config_entry)
+    device_id = await _setup_with_target_device(hass, mock_config_entry)
     mock_api_client.get_charge_station_transactions_page.reset_mock()
 
     await hass.services.async_call(
         DOMAIN,
         "get_transactions",
-        {"limit": 5},
-        target={"entity_id": target_entity},
+        {"device_id": device_id, "limit": 5},
         blocking=True,
         return_response=True,
     )
@@ -352,7 +354,7 @@ async def test_get_transactions_service_naive_datetimes(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test naive datetimes from the HA datetime selector use HA's default timezone."""
-    target_entity = await _setup_with_target_entity(hass, mock_config_entry)
+    device_id = await _setup_with_target_device(hass, mock_config_entry)
     mock_api_client.get_charge_station_transactions_page.reset_mock()
 
     orig_tz = dt_util.get_default_time_zone()
@@ -362,10 +364,10 @@ async def test_get_transactions_service_naive_datetimes(
             DOMAIN,
             "get_transactions",
             {
+                "device_id": device_id,
                 "date_from": "2026-10-20 14:00:00",  # CEST (+02:00) -> 12:00 UTC
                 "date_to": "2026-11-10 14:00:00",    # CET  (+01:00) -> 13:00 UTC
             },
-            target={"entity_id": target_entity},
             blocking=True,
             return_response=True,
         )
@@ -387,17 +389,17 @@ async def test_get_transactions_service_invalid_date_range(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test get_transactions raises ServiceValidationError when date_from > date_to."""
-    target_entity = await _setup_with_target_entity(hass, mock_config_entry)
+    device_id = await _setup_with_target_device(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as exc_info:
         await hass.services.async_call(
             DOMAIN,
             "get_transactions",
             {
+                "device_id": device_id,
                 "date_from": "2026-11-19T14:35:20+00:00",
                 "date_to": "2026-11-18T14:35:20+00:00",
             },
-            target={"entity_id": target_entity},
             blocking=True,
             return_response=True,
         )
@@ -410,17 +412,17 @@ async def test_get_transactions_service_date_range_too_long(
     mock_api_client: AsyncMock,
 ) -> None:
     """Test get_transactions raises ServiceValidationError when span exceeds 1 month."""
-    target_entity = await _setup_with_target_entity(hass, mock_config_entry)
+    device_id = await _setup_with_target_device(hass, mock_config_entry)
 
     with pytest.raises(ServiceValidationError) as exc_info:
         await hass.services.async_call(
             DOMAIN,
             "get_transactions",
             {
+                "device_id": device_id,
                 "date_from": "2026-10-19T14:35:20+00:00",
                 "date_to": "2026-11-19T14:35:21+00:00",
             },
-            target={"entity_id": target_entity},
             blocking=True,
             return_response=True,
         )
@@ -430,15 +432,14 @@ async def test_get_transactions_service_date_range_too_long(
 async def test_get_transactions_service_no_valid_targets(
     hass: HomeAssistant,
 ) -> None:
-    """Test get_transactions raises ServiceValidationError on invalid targets."""
+    """Test get_transactions raises ServiceValidationError on invalid device_id."""
     assert await async_setup(hass, {}) is True
 
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(
             DOMAIN,
             "get_transactions",
-            {"limit": 5},
-            target={"entity_id": "sensor.nonexistent_entity"},
+            {"device_id": "nonexistent_device", "limit": 5},
             blocking=True,
             return_response=True,
         )

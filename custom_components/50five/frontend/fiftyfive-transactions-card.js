@@ -345,10 +345,8 @@ class FiftyFiveTransactionsCard extends HTMLElement {
           type: "call_service",
           domain: "50five",
           service: "get_transactions",
-          target: {
-            device_id: this._config.device_id,
-          },
           service_data: {
+            device_id: this._config.device_id,
             limit: Number(this._config.limit) || DEFAULT_LIMIT,
             page: this._page,
           },

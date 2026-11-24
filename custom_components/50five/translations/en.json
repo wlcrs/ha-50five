@@ -196,6 +196,10 @@
       "name": "Get transactions",
       "description": "Fetch recent completed charging transactions for a charge station.",
       "fields": {
+        "device_id": {
+          "name": "Charge station",
+          "description": "The 50five charge station to fetch transactions for."
+        },
         "limit": {
           "name": "Limit",
           "description": "Maximum number of transactions to return (1-50)."

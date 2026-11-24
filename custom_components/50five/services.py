@@ -37,8 +37,9 @@ SERVICE_START_CHARGING_SCHEMA = cv.make_entity_service_schema(
     {vol.Optional("card_id"): cv.string}
 )
 SERVICE_STOP_CHARGING_SCHEMA = cv.make_entity_service_schema({})
-SERVICE_GET_TRANSACTIONS_SCHEMA = cv.make_entity_service_schema(
+SERVICE_GET_TRANSACTIONS_SCHEMA = vol.Schema(
     {
+        vol.Required("device_id"): cv.string,
         vol.Optional("limit", default=5): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=50)
         ),
@@ -133,6 +134,24 @@ def _resolve_switch_card_id(
     return None
 
 
+def _resolve_fiftyfive_device(
+    hass: HomeAssistant,
+    device_id: str,
+) -> tuple[FiftyFiveCoordinator, str] | None:
+    """Resolve a HA device_id to (coordinator, spot_id)."""
+    dev = dr.async_get(hass).async_get(device_id)
+    if not dev:
+        return None
+    spot_id = next((ident for dom, ident in dev.identifiers if dom == DOMAIN), None)
+    if not spot_id:
+        return None
+    for entry_id in dev.config_entries:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry and entry.domain == DOMAIN and hasattr(entry, "runtime_data"):
+            return (entry.runtime_data, spot_id)
+    return None
+
+
 async def _async_extract_targets(
     hass: HomeAssistant, call: ServiceCall
 ) -> list[tuple[FiftyFiveCoordinator, str, str, str | None]]:
@@ -217,13 +236,14 @@ def async_setup_services(hass: HomeAssistant) -> None:
             await coordinator.async_request_refresh()
 
     async def async_handle_get_transactions(call: ServiceCall) -> ServiceResponse:
-        """Fetch recent completed transactions for targeted charge stations."""
-        targets = await _async_extract_targets(hass, call)
-        if not targets:
+        """Fetch recent completed transactions for a targeted charge station device."""
+        resolved = _resolve_fiftyfive_device(hass, call.data["device_id"])
+        if not resolved:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="no_valid_targets",
             )
+        coordinator, spot_id = resolved
 
         limit = int(call.data.get("limit", 5))
         date_from = _normalize_service_datetime(call.data.get("date_from"))
@@ -242,63 +262,43 @@ def async_setup_services(hass: HomeAssistant) -> None:
                     translation_key="date_range_too_long",
                 )
 
-        seen_stations: set[tuple[int, str]] = set()
-        transactions_payload: list[dict[str, object]] = []
-        has_next = False
-
-        for coordinator, spot_id, _, _ in targets:
-            station_key = (id(coordinator), spot_id)
-            if station_key in seen_stations:
-                continue
-            seen_stations.add(station_key)
-
-            station_data = (
-                coordinator.data.get(spot_id) if coordinator.data else None
-            )
-            station_name = (
-                station_data.station.display_name if station_data else spot_id
-            )
-            collection = await coordinator.client.get_charge_station_transactions_page(
-                spot_id,
-                date_from=date_from,
-                date_to=date_to,
-                items_per_page=limit,
-                page=page,
-            )
-            if collection.has_next:
-                has_next = True
-            for tx in collection.items or []:
-                transactions_payload.append(
-                    {
-                        "id": tx.id,
-                        "station_id": spot_id,
-                        "station_name": station_name,
-                        "status": tx.status.value,
-                        "global_status": (
-                            tx.global_status.value if tx.global_status else None
-                        ),
-                        "start_date": (
-                            tx.start_date.isoformat() if tx.start_date else None
-                        ),
-                        "last_update_date": (
-                            tx.last_update_date.isoformat()
-                            if tx.last_update_date
-                            else None
-                        ),
-                        "total_duration": tx.total_duration,
-                        "total_energy": tx.total_energy,
-                        "total_idle_time": tx.total_idle_time,
-                        "total_cost": tx.total_cost,
-                        "currency": tx.currency,
-                        "card_id": tx.card_id,
-                        "home_charging": tx.home_charging,
-                    }
-                )
+        station_data = coordinator.data.get(spot_id) if coordinator.data else None
+        station_name = station_data.station.display_name if station_data else spot_id
+        collection = await coordinator.client.get_charge_station_transactions_page(
+            spot_id,
+            date_from=date_from,
+            date_to=date_to,
+            items_per_page=limit,
+            page=page,
+        )
+        transactions_payload: list[dict[str, object]] = [
+            {
+                "id": tx.id,
+                "station_id": spot_id,
+                "station_name": station_name,
+                "status": tx.status.value,
+                "global_status": (
+                    tx.global_status.value if tx.global_status else None
+                ),
+                "start_date": tx.start_date.isoformat() if tx.start_date else None,
+                "last_update_date": (
+                    tx.last_update_date.isoformat() if tx.last_update_date else None
+                ),
+                "total_duration": tx.total_duration,
+                "total_energy": tx.total_energy,
+                "total_idle_time": tx.total_idle_time,
+                "total_cost": tx.total_cost,
+                "currency": tx.currency,
+                "card_id": tx.card_id,
+                "home_charging": tx.home_charging,
+            }
+            for tx in (collection.items or [])
+        ]
 
         return {
             "transactions": transactions_payload,
             "page": page,
-            "has_next": has_next,
+            "has_next": bool(collection.has_next),
         }
 
     hass.services.async_register(
